@@ -79,6 +79,27 @@ function UnitFrames:ApplyFrameLayout(frame)
     self:ApplyAuraLayout(frame, "DEBUFF")
 end
 
+function UnitFrames:ApplyLayoutForFrames(frameType)
+    local function apply(frame)
+        if frame then
+            self:ApplyFrameLayout(frame)
+        end
+    end
+
+    if frameType ~= "raid" then
+        apply(self.playerFrame)
+        for i = 1, 4 do
+            apply(self.partyFrames[i])
+        end
+    end
+
+    if frameType ~= "party" then
+        for i = 1, 40 do
+            apply(self.raidFrames[i])
+        end
+    end
+end
+
 --[[
     Lightweight layout update during slider dragging
     Only updates size-related elements for performance
@@ -463,13 +484,48 @@ function UnitFrames:ApplyAuraLayout(frame, auraType)
     
     local size = db[prefix .. "Size"] or 18
     local scale = db[prefix .. "Scale"] or 1.0
-    local anchor = db[prefix .. "Anchor"] or (auraType == "BUFF" and "BOTTOMRIGHT" or "BOTTOMLEFT")
+    local defaultAnchor = (auraType == "BUFF") and "BOTTOMRIGHT" or "BOTTOMLEFT"
+    local anchor = db[prefix .. "Anchor"] or defaultAnchor
+    if db.auraAnchor == "TOP" then
+        anchor = (auraType == "BUFF") and "TOPRIGHT" or "TOPLEFT"
+    elseif db.auraAnchor == "BOTTOM" then
+        anchor = (auraType == "BUFF") and "BOTTOMRIGHT" or "BOTTOMLEFT"
+    elseif db.auraAnchor == "LEFT" then
+        anchor = (auraType == "BUFF") and "TOPLEFT" or "BOTTOMLEFT"
+    elseif db.auraAnchor == "RIGHT" then
+        anchor = (auraType == "BUFF") and "TOPRIGHT" or "BOTTOMRIGHT"
+    end
+
     local growth = db[prefix .. "Growth"] or (auraType == "BUFF" and "LEFT_UP" or "RIGHT_UP")
+    local simpleGrowth = db[prefix .. "GrowthDirection"]
+    if simpleGrowth then
+        local secondary = (simpleGrowth == "UP" or simpleGrowth == "DOWN") and "RIGHT" or "UP"
+        growth = simpleGrowth .. "_" .. secondary
+    end
+
     local offsetX = db[prefix .. "OffsetX"] or (auraType == "BUFF" and -2 or 2)
     local offsetY = db[prefix .. "OffsetY"] or 2
-    local paddingX = db[prefix .. "PaddingX"] or 2
-    local paddingY = db[prefix .. "PaddingY"] or 2
-    local wrap = db[prefix .. "Wrap"] or 4
+
+    local iconSpacing = db[prefix .. "IconSpacing"]
+    local paddingX = iconSpacing ~= nil and iconSpacing or (db[prefix .. "PaddingX"] or 2)
+    local paddingY = iconSpacing ~= nil and iconSpacing or (db[prefix .. "PaddingY"] or 2)
+
+    local wrap = db[prefix .. "IconsPerRow"] or db[prefix .. "Wrap"] or 4
+    wrap = max(1, wrap)
+
+    local framePadding = db.auraFramePadding or 0
+    if framePadding ~= 0 then
+        if anchor:find("LEFT") then
+            offsetX = offsetX + framePadding
+        elseif anchor:find("RIGHT") then
+            offsetX = offsetX - framePadding
+        end
+        if anchor:find("TOP") then
+            offsetY = offsetY - framePadding
+        elseif anchor:find("BOTTOM") then
+            offsetY = offsetY + framePadding
+        end
+    end
     local borderThickness = db[prefix .. "BorderThickness"] or 1
     
     -- Apply pixel-perfect adjustments
@@ -508,6 +564,9 @@ function UnitFrames:ApplyAuraLayout(frame, auraType)
     end
     
     -- Position icons
+    local stackPos = db[prefix .. "StackPosition"] or "BOTTOMRIGHT"
+    local durationSize = db[prefix .. "DurationSize"] or db.auraDurationSize or 9
+
     for i, icon in ipairs(icons) do
         icon:SetFrameLevel(frame:GetFrameLevel() + 5)
         local idx = i - 1
@@ -537,7 +596,12 @@ function UnitFrames:ApplyAuraLayout(frame, auraType)
         -- Apply duration text settings
         if icon.duration then
             local fontPath = self:GetFontPath(db.auraDurationFont)
-            self:SafeSetFont(icon.duration, fontPath, db.auraDurationSize or 9, db.auraDurationOutline or "OUTLINE")
+            local durationFontSize = math.max(6, math.min(durationSize - 1, floor(scaledSize * 0.45)))
+            self:SafeSetFont(icon.duration, fontPath, durationFontSize, db.auraDurationOutline or "OUTLINE")
+            icon.duration:ClearAllPoints()
+            icon.duration:SetPoint("CENTER", icon, "CENTER", 0, 0)
+            local durationBox = max(8, scaledSize - 2)
+            icon.duration:SetSize(durationBox, durationBox)
             icon.showDuration = db.auraDurationEnabled ~= false
         end
         
@@ -546,6 +610,16 @@ function UnitFrames:ApplyAuraLayout(frame, auraType)
             local fontPath = self:GetFontPath(db.auraStackFont)
             self:SafeSetFont(icon.count, fontPath, db.auraStackSize or 10, db.auraStackOutline or "OUTLINE")
             icon.stackMinimum = db.auraStackMinimum or 2
+            icon.count:ClearAllPoints()
+            if stackPos == "TOPLEFT" then
+                icon.count:SetPoint("TOPLEFT", icon, "TOPLEFT", 1, -1)
+            elseif stackPos == "TOPRIGHT" then
+                icon.count:SetPoint("TOPRIGHT", icon, "TOPRIGHT", -1, -1)
+            elseif stackPos == "BOTTOMLEFT" then
+                icon.count:SetPoint("BOTTOMLEFT", icon, "BOTTOMLEFT", 1, 1)
+            else
+                icon.count:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -1, 1)
+            end
         end
     end
 end

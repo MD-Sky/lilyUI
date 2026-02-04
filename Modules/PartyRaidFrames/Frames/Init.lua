@@ -672,9 +672,10 @@ function UnitFrames:UpdateFrameVisibility()
     local raidDb = self:GetRaidDB()
     
     -- Party frames visibility
-    local showParty = not inRaid and inGroup
+    local partyEnabled = db.enabled ~= false
+    local showParty = partyEnabled and not inRaid and inGroup
     if db.showInRaid then
-        showParty = showParty or inRaid
+        showParty = partyEnabled and (showParty or inRaid)
     end
     
     if showParty then

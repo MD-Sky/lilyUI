@@ -974,6 +974,23 @@ home = {
                             end
                         end,
                     },
+
+                    showIDsInTooltips = {
+                        type = "toggle",
+                        name = "Show IDs in Tooltips",
+                        desc = "Append SpellID and ItemID lines to tooltips.",
+                        order = 19.7,
+                        width = "full",
+                        get = function()
+                            return LilyUI.db.profile.general.showIDsInTooltips ~= false
+                        end,
+                        set = function(_, val)
+                            LilyUI.db.profile.general.showIDsInTooltips = val
+                            if LilyUI.QOL and LilyUI.QOL.RefreshTooltipIDs then
+                                LilyUI.QOL:RefreshTooltipIDs()
+                            end
+                        end,
+                    },
                     
                     -- Global Font
                     globalFont = {

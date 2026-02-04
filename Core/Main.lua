@@ -492,9 +492,9 @@ function LilyUI:OnEnable()
         self.ResourceBars:Initialize()
     end
 
-   -- if self.PartyFrames and self.PartyFrames.Initialize then
-    --    self.PartyFrames:Initialize()
-   -- end
+    if self.PartyFrames and self.PartyFrames.Initialize then
+        self.PartyFrames:Initialize()
+    end
 
    -- if self.RaidFrames and self.RaidFrames.Initialize then
    --     self.RaidFrames:Initialize()

@@ -218,7 +218,17 @@ local SharedDefaults = {
     auraDurationOutline = "OUTLINE",
     auraDurationPosition = "BOTTOM",
     auraDurationOffsetY = -2,
-    
+
+    -- Combat Aura Filtering + Display
+    combatFilterEnabled = false,
+    combatFilterMode = "NONE",
+    combatFilterAppliesTo = "BOTH",
+    combatBuffSpellList = {},
+    combatDebuffSpellList = {},
+    combatDisplayMode = "BOTH",
+    combatAuraDebugEnabled = false,
+    combatAuraDebugSpellId = 0,
+
     -- Aura Stack Count
     auraStackEnabled = true,
     auraStackFont = "Fonts\\FRIZQT__.TTF",

@@ -13,6 +13,7 @@ local defaults = {
             globalTexture = "Lily",
             globalFont = "Expressway",
             applyGlobalFontToBlizzard = true,
+            showIDsInTooltips = true,
             -- UI accent/theme color (used by the custom config GUI and any themed elements)
             -- Default: pink
             colorScheme = { 1.0, 0.25, 0.65, 1.0 },
@@ -1282,4 +1283,3 @@ local defaults = {
 }
 
 LilyUI.defaults = defaults
-

@@ -393,6 +393,27 @@ function UnitFrames:UpdateAllFrameHighlights()
     end
 end
 
+function UnitFrames:ApplyHighlightSettings(frameType)
+    local function apply(frame)
+        if not frame then return end
+        self:ApplyHighlightLayout(frame)
+        self:UpdateAllHighlights(frame)
+    end
+
+    if frameType ~= "raid" then
+        apply(self.playerFrame)
+        for _, frame in pairs(self.partyFrames) do
+            apply(frame)
+        end
+    end
+
+    if frameType ~= "party" then
+        for _, frame in pairs(self.raidFrames) do
+            apply(frame)
+        end
+    end
+end
+
 -- ============================================================================
 -- EVENT HANDLERS
 -- ============================================================================

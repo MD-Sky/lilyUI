@@ -1308,7 +1308,6 @@ end
 
 function Widgets.CreateHeader(parent, option, yOffset)
     local frame = CreateFrame("Frame", nil, parent)
-    frame:SetHeight(32)
     frame:SetPoint("TOPLEFT", parent, "TOPLEFT", 10, -yOffset)
     frame:SetPoint("RIGHT", parent, "RIGHT", -10, 0)
 
@@ -1324,13 +1323,19 @@ function Widgets.CreateHeader(parent, option, yOffset)
         label:SetFont(currentFont, 20, flags)
     end
     label:SetPoint("LEFT", frame, "LEFT", 0, 2)
+    label:SetPoint("RIGHT", frame, "RIGHT", 0, 0)
     label:SetJustifyH("LEFT")
+    label:SetJustifyV("MIDDLE")
+    label:SetWordWrap(true)
     local name = option.name or ""
     if type(name) == "function" then
         name = name()
     end
     label:SetText(name)
     label:SetTextColor(1.0, 1.0, 1.0, 1)
+
+    local labelHeight = label:GetStringHeight() or 20
+    frame:SetHeight(math.max(32, labelHeight + 8))
 
     local borderLeft = frame:CreateTexture(nil, "ARTWORK")
     borderLeft:SetTexture("Interface\\Buttons\\WHITE8x8")
@@ -1712,7 +1717,7 @@ elseif option.type == "landingPage" then
                 widgetHeight = option.multiline and 150 or 35
             elseif option.type == "header" then
                 widget = Widgets.CreateHeader(contentFrame, option, yOffset)
-                widgetHeight = 32
+                widgetHeight = widget:GetHeight() or 32
             elseif option.type == "description" then
                 widget = Widgets.CreateDescription(contentFrame, option, yOffset, options)
                 widgetHeight = widget:GetHeight()
@@ -1769,7 +1774,7 @@ elseif option.type == "landingPage" then
                             inlineHeight = inlineItem.option.multiline and 150 or 35
                         elseif inlineItem.option.type == "header" then
                             inlineWidget = Widgets.CreateHeader(groupFrame, inlineItem.option, inlineYOffset)
-                            inlineHeight = 32
+                            inlineHeight = inlineWidget:GetHeight() or 32
                         elseif inlineItem.option.type == "description" then
                             inlineWidget = Widgets.CreateDescription(groupFrame, inlineItem.option, inlineYOffset, options)
                             inlineHeight = inlineWidget:GetHeight() + 5  -- Add extra spacing
@@ -1829,7 +1834,7 @@ elseif option.type == "landingPage" then
                                         nestedHeight = nestedItem.option.multiline and 150 or 35
                                     elseif nestedItem.option.type == "header" then
                                         nestedWidget = Widgets.CreateHeader(nestedGroupFrame, nestedItem.option, nestedYOffset)
-                                        nestedHeight = 32
+                                        nestedHeight = nestedWidget:GetHeight() or 32
                                     elseif nestedItem.option.type == "description" then
                                         nestedWidget = Widgets.CreateDescription(nestedGroupFrame, nestedItem.option, nestedYOffset, options)
                                         nestedHeight = nestedWidget:GetHeight() + 5

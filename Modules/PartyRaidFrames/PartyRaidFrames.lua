@@ -426,6 +426,91 @@ function UnitFrames:UpdateAllFrames()
 end
 
 -- ============================================================================
+-- REFRESH PIPELINE (DEBOUNCED)
+-- ============================================================================
+
+UnitFrames.refreshThrottle = UnitFrames.refreshThrottle or 0.05
+
+local function MergeRefreshFlags(target, source)
+    if not target or not source then return end
+    for key, value in pairs(source) do
+        if value then
+            target[key] = true
+        end
+    end
+end
+
+function UnitFrames:RequestRefresh(frameType, flags)
+    local requestFlags = (type(flags) == "table") and flags or {frames = true}
+    local pending = self.pendingRefresh or {party = {}, raid = {}}
+
+    if frameType == "party" then
+        MergeRefreshFlags(pending.party, requestFlags)
+    elseif frameType == "raid" then
+        MergeRefreshFlags(pending.raid, requestFlags)
+    else
+        MergeRefreshFlags(pending.party, requestFlags)
+        MergeRefreshFlags(pending.raid, requestFlags)
+    end
+
+    self.pendingRefresh = pending
+
+    if self.refreshQueued then return end
+    self.refreshQueued = true
+
+    local owner = self
+    local delay = owner.refreshThrottle or 0.05
+    C_Timer.After(delay, function()
+        owner.refreshQueued = false
+        local queued = owner.pendingRefresh
+        owner.pendingRefresh = nil
+        if not queued then return end
+        if next(queued.party) ~= nil then
+            owner:ApplyRefreshFor("party", queued.party)
+        end
+        if next(queued.raid) ~= nil then
+            owner:ApplyRefreshFor("raid", queued.raid)
+        end
+    end)
+end
+
+function UnitFrames:ApplyRefreshFor(frameType, flags)
+    if not flags then return end
+
+    if flags.visibility then
+        self:UpdateFrameVisibility()
+    end
+
+    if flags.layout then
+        if frameType == "raid" then
+            self:UpdateRaidLayout()
+        else
+            self:UpdatePartyLayout()
+        end
+    elseif flags.style then
+        if self.ApplyLayoutForFrames then
+            self:ApplyLayoutForFrames(frameType)
+        end
+    end
+
+    if flags.auras and self.ApplyAuraSettings then
+        self:ApplyAuraSettings(frameType)
+    end
+
+    if flags.frames then
+        self:UpdateAllFrames()
+    end
+
+    if flags.highlights and self.ApplyHighlightSettings then
+        self:ApplyHighlightSettings(frameType)
+    end
+
+    if flags.range and self.ApplyRangeSettings then
+        self:ApplyRangeSettings(frameType)
+    end
+end
+
+-- ============================================================================
 -- COMBAT LOCKDOWN HANDLING
 -- ============================================================================
 

@@ -14,6 +14,13 @@ local function GetDB()
     return LilyUI.db.profile.qol
 end
 
+local function GetGeneralDB()
+    if not (LilyUI.db and LilyUI.db.profile) then
+        return nil
+    end
+    return LilyUI.db.profile.general
+end
+
 local function GetBagsBar()
     return _G.BagsBar
         or _G.BagBar
@@ -28,6 +35,15 @@ end
 local function TooltipIDsAllowed()
     local db = GetDB()
     if not (db and db.tooltipIDs) then return false end
+    if InCombatLockdown and InCombatLockdown() then return false end
+    return true
+end
+
+local function MinimalTooltipIDsAllowed()
+    local general = GetGeneralDB()
+    if not general or general.showIDsInTooltips == false then return false end
+    local db = GetDB()
+    if db and db.tooltipIDs then return false end
     if InCombatLockdown and InCombatLockdown() then return false end
     return true
 end
@@ -413,6 +429,84 @@ function QOL:IsTooltipIDsEnabled()
     return db and db.tooltipIDs
 end
 
+function QOL:IsMinimalTooltipIDsEnabled()
+    local general = GetGeneralDB()
+    if not general or general.showIDsInTooltips == false then return false end
+    local db = GetDB()
+    if db and db.tooltipIDs then return false end
+    return true
+end
+
+function QOL:InitializeMinimalTooltipIDs()
+    if self.minimalTooltipIDsInitialized then return end
+    self.minimalTooltipIDsInitialized = true
+
+    if not GameTooltip or not GameTooltip.HookScript then return end
+
+    local function TryHook(tooltip, script, handler)
+        if not tooltip or not tooltip.HookScript then return false end
+        local hasScript = tooltip.HasScript
+        if not hasScript or tooltip:HasScript(script) then
+            tooltip:HookScript(script, handler)
+            return true
+        end
+        return false
+    end
+
+    local function ClearFlags(tooltip)
+        if tooltip then
+            tooltip.__lilyUIAddedSpellID = nil
+            tooltip.__lilyUIAddedItemID = nil
+        end
+    end
+
+    local function AddSpellLine(tooltip)
+        if not MinimalTooltipIDsAllowed() then return end
+        if tooltip.__lilyUIAddedSpellID then return end
+
+        local name, spellID = tooltip:GetSpell()
+        if not spellID and name and GetSpellInfo then
+            local _, _, _, _, _, _, fallbackId = GetSpellInfo(name)
+            spellID = fallbackId
+        end
+        if spellID then
+            tooltip:AddLine("SpellID: " .. spellID, 0.7, 0.7, 0.7)
+            tooltip.__lilyUIAddedSpellID = true
+            tooltip:Show()
+        end
+    end
+
+    local function AddItemLine(tooltip)
+        if not MinimalTooltipIDsAllowed() then return end
+        if tooltip.__lilyUIAddedItemID then return end
+
+        local _, itemLink = tooltip:GetItem()
+        local itemID = itemLink and select(1, GetItemInfoInstant(itemLink))
+        if itemID then
+            tooltip:AddLine("ItemID: " .. itemID, 0.7, 0.7, 0.7)
+            tooltip.__lilyUIAddedItemID = true
+            tooltip:Show()
+        end
+    end
+
+    if not TryHook(GameTooltip, "OnTooltipCleared", function(tooltip)
+        ClearFlags(tooltip)
+    end) then
+        TryHook(GameTooltip, "OnHide", function(tooltip)
+            ClearFlags(tooltip)
+        end)
+    end
+
+    local hookedSpell = TryHook(GameTooltip, "OnTooltipSetSpell", AddSpellLine)
+    local hookedItem = TryHook(GameTooltip, "OnTooltipSetItem", AddItemLine)
+    if not hookedSpell or not hookedItem then
+        TryHook(GameTooltip, "OnShow", function(tooltip)
+            AddSpellLine(tooltip)
+            AddItemLine(tooltip)
+        end)
+    end
+end
+
 function QOL:InitializeTooltipIDs()
     if not self:IsTooltipIDsEnabled() then return end
 
@@ -594,7 +688,9 @@ end
 function QOL:RefreshTooltipIDs()
     if self:IsTooltipIDsEnabled() and not self.tooltipIDsInitialized then
         self:InitializeTooltipIDs()
+        return
+    end
+    if self:IsMinimalTooltipIDsEnabled() and not self.minimalTooltipIDsInitialized then
+        self:InitializeMinimalTooltipIDs()
     end
 end
-
-

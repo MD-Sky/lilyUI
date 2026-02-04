@@ -153,6 +153,14 @@ UnitFrames.ExportCategories = {
         "durationColorLow",
         "durationHighThreshold",
         "durationLowThreshold",
+        "combatFilterEnabled",
+        "combatFilterMode",
+        "combatFilterAppliesTo",
+        "combatBuffSpellList",
+        "combatDebuffSpellList",
+        "combatDisplayMode",
+        "combatAuraDebugEnabled",
+        "combatAuraDebugSpellId",
     },
     
     -- Text display settings

@@ -270,6 +270,19 @@ function UnitFrames:StopRangeTicker()
     end
 end
 
+function UnitFrames:ApplyRangeSettings()
+    local partyEnabled = self:GetDB().rangeCheckEnabled ~= false
+    local raidEnabled = self:GetRaidDB().rangeCheckEnabled ~= false
+
+    if partyEnabled or raidEnabled then
+        self:StartRangeTicker()
+    else
+        self:StopRangeTicker()
+    end
+
+    self:UpdateAllRangeAlpha()
+end
+
 -- ============================================================================
 -- BATCH UPDATES
 -- ============================================================================
