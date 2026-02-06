@@ -8,6 +8,7 @@ local LilyUI = ns.Addon
 LilyUI.PartyFrames = LilyUI.PartyFrames or {}
 local UnitFrames = LilyUI.PartyFrames
 local SpellProvider = ns.SpellProvider or (LilyUI and LilyUI.SpellProvider)
+local SecretSafe = ns.SecretSafe or {}
 
 -- Cache commonly used API
 local ForEachAura = AuraUtil and AuraUtil.ForEachAura
@@ -17,46 +18,25 @@ local CreateFrame = CreateFrame
 local UnitAffectingCombat = UnitAffectingCombat
 local IsInRaid = IsInRaid
 local floor, ceil, min, max = math.floor, math.ceil, math.min, math.max
+local unpack = unpack or table.unpack
 
 -- Aura cache for Blizzard filtering
 local blizzardAuraCache = {}
+local GetAuraDataByInstanceID
 
 -- ============================================================================
 -- SAFE VALUE HELPERS (avoid "secret value" errors from protected aura tables)
 -- ============================================================================
 
-local function IsSecretValue(v)
-    return type(v) == "userdata"
-end
-
 local function SafeToNumber(v, default)
-    if v == nil then
+    if v == nil or type(SecretSafe.NumberOrNil) ~= "function" then
         return default
     end
-
-    local t = type(v)
-    if t == "number" then
-        local okDirect, direct = pcall(function() return v + 0 end)
-        if okDirect and type(direct) == "number" then
-            return direct
-        end
+    local n = SecretSafe.NumberOrNil(v)
+    if n == nil then
         return default
     end
-
-    local okToNum, asNum = pcall(tonumber, v)
-    if okToNum and type(asNum) == "number" then
-        return asNum
-    end
-
-    local okToString, asString = pcall(tostring, v)
-    if okToString and type(asString) == "string" then
-        local okFromString, fromString = pcall(tonumber, asString)
-        if okFromString and type(fromString) == "number" then
-            return fromString
-        end
-    end
-
-    return default
+    return n
 end
 
 local function SafeCompare(a, b)
@@ -86,9 +66,9 @@ end
 local function AuraDebugCoerce(label, value, fallback)
     if not UnitFrames or not UnitFrames.devMode then return end
     if LilyUI and LilyUI.DebugWindowLog then
-        LilyUI:DebugWindowLog("CombatAuras", "Auras: coerced %s (%s) to %s", tostring(label), tostring(type(value)), tostring(fallback))
+        LilyUI:DebugWindowLog("CombatAuras", "Auras: coerced %s (%s)", label or "?", type(value))
     elseif UnitFrames.DebugPrint then
-        UnitFrames:DebugPrint("Auras: coerced " .. label .. " (" .. type(value) .. ") to " .. tostring(fallback))
+        UnitFrames:DebugPrint("Auras: coerced " .. (label or "?") .. " (" .. type(value) .. ")")
     end
 end
 
@@ -121,21 +101,10 @@ local function SafeString(v, default)
 end
 
 local function SafeRevealString(v)
-    local ok, result = pcall(function()
-        return string.format("%s", v)
-    end)
-    if not ok or type(result) ~= "string" then
+    if type(v) ~= "string" or v == "" or v == "<no value>" then
         return nil
     end
-    local okEmpty, isEmpty = pcall(function() return result == "" end)
-    if not okEmpty or isEmpty then
-        return nil
-    end
-    local okNoValue, isNoValue = pcall(function() return result == "<no value>" end)
-    if not okNoValue or isNoValue then
-        return nil
-    end
-    return result
+    return v
 end
 
 TrySafeNumber = function(v)
@@ -168,15 +137,11 @@ local function SafeAuraField(auraData, key)
 end
 
 local function SafeSourceUnitString(v)
-    if v == nil then
-        return ""
-    end
     if type(v) == "string" then
-        return v
-    end
-    local ok, text = pcall(tostring, v)
-    if ok and type(text) == "string" then
-        return text
+        local scrubbed = type(SecretSafe.Scrub1) == "function" and SecretSafe.Scrub1(v) or v
+        if type(scrubbed) == "string" then
+            return scrubbed
+        end
     end
     return ""
 end
@@ -186,12 +151,19 @@ local function SafeSpellKey(spellId)
         return nil
     end
 
-    local ok, raw = pcall(tostring, spellId)
-    if not ok or type(raw) ~= "string" then
+    if type(spellId) == "number" then
+        local safeId = SafePositiveNumber(spellId)
+        if safeId then
+            return tostring(floor(safeId))
+        end
         return nil
     end
 
-    local trimmed = raw:match("^%s*(.-)%s*$")
+    if type(spellId) ~= "string" then
+        return nil
+    end
+
+    local trimmed = spellId:match("^%s*(.-)%s*$")
     if not trimmed or trimmed == "" or trimmed == "<no value>" then
         return nil
     end
@@ -439,7 +411,6 @@ function UnitFrames:LogPartyAuraUpdate(unit, auraType, icons, shownCount)
         local icon = icons and icons[i]
         if icon then
             local expTime = icon._expTime
-            local remaining = (expTime and expTime > 0) and (expTime - now) or nil
             local cooldownShown = icon.cooldown and icon.cooldown.IsShown and icon.cooldown:IsShown() or false
             local textShown = icon.duration and icon.duration.IsShown and icon.duration:IsShown() or false
             LilyUI:DebugWindowLog("CombatAuras",
@@ -448,7 +419,7 @@ function UnitFrames:LogPartyAuraUpdate(unit, auraType, icons, shownCount)
                 tostring(icon.spellId or "nil"),
                 tostring(icon._duration or "nil"),
                 tostring(expTime or "nil"),
-                remaining and string.format("%.1f", remaining) or "nil",
+                "n/a",
                 tostring(cooldownShown),
                 tostring(textShown))
         end
@@ -615,6 +586,10 @@ end
 function UnitFrames:_RegisterAuraDurationIcon(icon)
     if not icon then return end
     self:_EnsureAuraDurationUpdater()
+    if icon._usesDurationObject then
+        self:_UnregisterAuraDurationIcon(icon)
+        return
+    end
 
     local expTime = SafePositiveNumber(icon._expTime)
     local duration = SafePositiveNumber(icon._duration)
@@ -668,9 +643,8 @@ function UnitFrames:_RefreshAuraTiming(icon)
         end
     end
 
-    if not C_UnitAuras or not C_UnitAuras.GetAuraDataByInstanceID then return false end
-    local ok, data = pcall(C_UnitAuras.GetAuraDataByInstanceID, unit, icon.auraInstanceID)
-    if not ok or not data then
+    local data = GetAuraDataByInstanceID(unit, icon.auraInstanceID)
+    if not data then
         return false
     end
     local safe = SanitizeAuraData(data)
@@ -712,101 +686,9 @@ function UnitFrames:_OnAuraDurationUpdate(elapsed)
 end
 
 function UnitFrames:_UpdateAuraDurationForIcon(icon, now)
-    if not icon or not icon.IsShown or not icon:IsShown() then
-        return false
-    end
-
-    local expTime = SafePositiveNumber(icon._expTime)
-    local totalDuration = SafePositiveNumber(icon._duration)
-    if (not expTime or not totalDuration) and icon._needsTimingRefresh and self:IsPlayerInCombat() then
-        local refreshed = self:_RefreshAuraTiming(icon)
-        if refreshed then
-            expTime = SafePositiveNumber(icon._expTime)
-            totalDuration = SafePositiveNumber(icon._duration)
-        else
-            icon._timingRefreshAttempts = (icon._timingRefreshAttempts or 0) + 1
-            if icon._timingRefreshAttempts <= 5 then
-                return true
-            end
-            icon._needsTimingRefresh = false
-        end
-    end
-    if not expTime or not totalDuration then
-        if icon.duration then
-            icon.duration:SetText("")
-            icon.duration:Hide()
-        end
-        if icon.expiring then
-            icon.expiring:Hide()
-        end
-        return false
-    end
-
-    local remaining = TrySafeNumber(expTime - now)
-    if not remaining or remaining <= 0 then
-        if icon.duration then
-            icon.duration:SetText("")
-            icon.duration:Hide()
-        end
-        if icon.expiring then
-            icon.expiring:Hide()
-        end
-        return false
-    end
-
-    if icon.showSwipe and icon.cooldown then
-        local startTime = TrySafeNumber(expTime - totalDuration)
-        if not startTime then
-            return true
-        end
-        local setOk = pcall(icon.cooldown.SetCooldown, icon.cooldown, startTime, totalDuration)
-        if setOk then
-            if icon.cooldown.SetDrawSwipe then
-                icon.cooldown:SetDrawSwipe(true)
-            end
-            icon.cooldown:Show()
-        else
-            if icon.cooldown.SetDrawSwipe then
-                icon.cooldown:SetDrawSwipe(false)
-            end
-            icon.cooldown:Hide()
-        end
-    end
-
-    if icon.showDuration and icon.duration then
-        if remaining >= 3600 then
-            icon.duration:SetFormattedText("%dh", floor(remaining / 3600 + 0.5))
-        elseif remaining >= 60 then
-            icon.duration:SetFormattedText("%dm", floor(remaining / 60 + 0.5))
-        elseif remaining >= 10 then
-            icon.duration:SetFormattedText("%d", floor(remaining + 0.5))
-        else
-            icon.duration:SetFormattedText("%.1f", remaining)
-        end
-
-        local r, g, b = UnitFrames:GetDurationColorByPercent(remaining, totalDuration)
-        if icon.duration.SetTextColor then
-            icon.duration:SetTextColor(r, g, b)
-        end
-        icon.duration:Show()
-    elseif icon.duration then
-        icon.duration:SetText("")
-        icon.duration:Hide()
-    end
-
-    local db = icon._db or self:GetDB()
-    local expiringThreshold = (db and db.auraExpiringThreshold) or 5
-    if db and db.auraExpiringEnabled ~= false and remaining <= expiringThreshold then
-        local pulseAlpha = (math.sin(now * 4) + 1) * 0.15
-        icon.expiring:SetAlpha(pulseAlpha)
-        icon.expiring:Show()
-    else
-        if icon.expiring then
-            icon.expiring:Hide()
-        end
-    end
-
-    return true
+    -- Duration updates are driven directly by cooldown widgets via DurationObject.
+    -- Keep the legacy updater inert to avoid time arithmetic on aura timing fields.
+    return false
 end
 
 
@@ -1569,8 +1451,7 @@ function UnitFrames:SmartFilterAura(auraData, unit, auraType, db)
             local safeDur = SafePositiveNumber(dur)
             local safeExp = SafePositiveNumber(exp)
             if safeDur and safeExp then
-                local remaining = TrySafeNumber(safeExp - GetTime())
-                if remaining and remaining > 5 then
+                if safeDur > 5 then
                     return true
                 end
             end
@@ -1637,6 +1518,36 @@ end
     @param auraType string - "BUFF" or "DEBUFF"
     @return table - Array of aura data
 ]]
+GetAuraDataByInstanceID = function(unit, auraInstanceID)
+    if not C_UnitAuras or not unit or not auraInstanceID then
+        return nil
+    end
+    if C_UnitAuras.GetAuraDataByAuraInstanceID then
+        local ok, data = pcall(C_UnitAuras.GetAuraDataByAuraInstanceID, unit, auraInstanceID)
+        if ok and data then
+            return data
+        end
+    end
+    if C_UnitAuras.GetAuraDataByInstanceID then
+        local ok, data = pcall(C_UnitAuras.GetAuraDataByInstanceID, unit, auraInstanceID)
+        if ok and data then
+            return data
+        end
+    end
+    return nil
+end
+
+local function SafeAuraCallback(inner, ...)
+    local args = {...}
+    local ok = xpcall(function()
+        return inner(unpack(args))
+    end, debugstack)
+    if not ok then
+        SecretSafe.LogOnce("aura_callback_fail", "|cffff0000lilyUI|r Aura callback error (suppressed); scan continues.")
+    end
+    return ok
+end
+
 function UnitFrames:CollectAuras(unit, auraType, db)
     db = db or self:GetDB()
     local auras = {}
@@ -1648,165 +1559,125 @@ function UnitFrames:CollectAuras(unit, auraType, db)
         method = "ForEachAura",
     }
 
-    local function ResolveAuraData(auraData)
-        local sanitizeOk, safeAura = xpcall(function()
-            return SanitizeAuraData(auraData)
-        end, function(err)
-            return err
-        end)
-        if not sanitizeOk then
-            local errText = tostring(safeAura or "unknown error"):gsub("\r", " "):gsub("\n", " | ")
-            self:LogAuraDebug(db,
-                "sanitize:" .. tostring(unit or "?") .. ":" .. tostring(auraType or "?"),
-                string.format("[CombatAuras][SanitizeError] unit=%s type=%s err=%s",
-                    tostring(unit or "?"),
-                    tostring(auraType or "?"),
-                    errText
-                ),
-                2.0
-            )
-            safeAura = nil
+    local function AddAuraTimingMeta(safeAura)
+        if not safeAura then
+            return nil
         end
-        if safeAura and safeAura.spellId then
-            return safeAura
+        local instanceId = SafeNumberOrNil(safeAura.auraInstanceID)
+        local timed = false
+        local durationObj = nil
+        local countText = nil
+
+        if instanceId and C_UnitAuras and type(C_UnitAuras.DoesAuraHaveExpirationTime) == "function" then
+            local okTimed, hasTimed = pcall(C_UnitAuras.DoesAuraHaveExpirationTime, unit, instanceId)
+            timed = okTimed and hasTimed == true or false
         end
-        local instanceId = SafeNumberOrNil(SafeAuraField(auraData, "auraInstanceID"))
-        if instanceId and C_UnitAuras and C_UnitAuras.GetAuraDataByInstanceID then
-            local ok, refreshed = pcall(C_UnitAuras.GetAuraDataByInstanceID, unit, instanceId)
-            if ok and refreshed then
-                local refreshedOk, refreshedSafe = xpcall(function()
-                    return SanitizeAuraData(refreshed)
-                end, function(err)
-                    return err
-                end)
-                if not refreshedOk then
-                    local errText = tostring(refreshedSafe or "unknown error"):gsub("\r", " "):gsub("\n", " | ")
-                    self:LogAuraDebug(db,
-                        "sanitize-refresh:" .. tostring(unit or "?") .. ":" .. tostring(auraType or "?"),
-                        string.format("[CombatAuras][SanitizeRefreshError] unit=%s type=%s err=%s",
-                            tostring(unit or "?"),
-                            tostring(auraType or "?"),
-                            errText
-                        ),
-                        2.0
-                    )
-                    refreshedSafe = nil
-                end
-                if refreshedSafe then
-                    return refreshedSafe
-                end
+
+        if timed and instanceId then
+            durationObj = GetAuraDurationObject(unit, instanceId)
+            if not durationObj then
+                local logKey = safeAura.spellId or ("aura:" .. tostring(instanceId or 0))
+                SecretSafe.LogOnce(logKey, "|cffffff00lilyUI|r Aura timing secret/unavailable in combat; showing icon without timer.")
             end
         end
+
+        if instanceId and C_UnitAuras and type(C_UnitAuras.GetAuraApplicationDisplayCount) == "function" then
+            local okCount, displayCount = pcall(C_UnitAuras.GetAuraApplicationDisplayCount, unit, instanceId)
+            if okCount and type(displayCount) == "string" and displayCount ~= "" then
+                countText = displayCount
+            end
+        end
+
+        safeAura.timed = timed
+        safeAura.durationObj = durationObj
+        safeAura.countText = countText
+        safeAura.sortExp = SafeNumberOrNil(safeAura.expirationTime)
+        safeAura.sortIsTimed = timed and safeAura.sortExp ~= nil or false
         return safeAura
     end
-    
-    local forEachOk = false
-    local scanFailed = false
-    local fallbackErrored = false
-    self._lastGoodAuras = self._lastGoodAuras or {}
-    if ForEachAura then
-        -- Debug wrapper: capture real errors + stack traces from AuraUtil.ForEachAura failures.
-        local forEachError
-        local forEachStack
-        local ok = xpcall(function()
-            ForEachAura(unit, filter, nil, function(auraData)
-                local callbackOk, callbackErr = xpcall(function()
-                    stats.rawCount = stats.rawCount + 1
-                    local safeAura = ResolveAuraData(auraData)
-                    if safeAura then
-                        if safeAura._durationInvalid then
-                            self:LogAuraInvalidFieldOnce(db, unit, auraType, safeAura, "duration", safeAura._durationRaw)
-                        end
-                        if safeAura._expirationInvalid then
-                            self:LogAuraInvalidFieldOnce(db, unit, auraType, safeAura, "expirationTime", safeAura._expirationRaw)
-                        end
 
-                        -- Keep one bad aura/filter decision from aborting the entire ForEachAura scan.
-                        local decisionOk, shouldShow = xpcall(function()
-                            return self:ShouldShowAura(safeAura, unit, auraType, db, combatLookupContext)
-                        end, function(err)
-                            local errText = tostring(err or "unknown error"):gsub("\r", " "):gsub("\n", " | ")
-                            self:LogAuraDebug(db,
-                                "aurafiltercb:" .. tostring(unit or "?") .. ":" .. tostring(auraType or "?"),
-                                string.format("[CombatAuras][FilterDecisionError] unit=%s type=%s combat=%s spellID=%s err=%s",
-                                    tostring(unit or "?"),
-                                    tostring(auraType or "?"),
-                                    tostring(self:IsPlayerInCombat()),
-                                    tostring(safeAura.spellId or "nil"),
-                                    errText
-                                ),
-                                1.0
-                            )
-                            return err
-                        end)
-
-                        if decisionOk and shouldShow then
-                            table.insert(auras, safeAura)
-                            stats.passedCount = stats.passedCount + 1
-                        end
-                    end
-                end, function(err)
-                    return err
-                end)
-                if not callbackOk then
-                    local errText = tostring(callbackErr or "unknown error"):gsub("\r", " "):gsub("\n", " | ")
-                    self:LogAuraDebug(db,
-                        "foreachcbfail:" .. tostring(unit or "?") .. ":" .. tostring(auraType or "?"),
-                        string.format("[CombatAuras][ForEachAuraCallbackError] unit=%s type=%s combat=%s err=%s",
-                            tostring(unit or "?"),
-                            tostring(auraType or "?"),
-                            tostring(self:IsPlayerInCombat()),
-                            errText
-                        ),
-                        2.0
-                    )
-                end
-                return false  -- Continue iteration
-            end, true)  -- Use the full aura data
-        end, function(err)
-            forEachError = err
-            forEachStack = (debugstack and debugstack(2, 40, 40)) or nil
-            return forEachStack or tostring(err)
+    local function ResolveAuraData(auraData)
+        local safeAura = nil
+        SafeAuraCallback(function()
+            safeAura = SanitizeAuraData(auraData)
         end)
 
-        forEachOk = ok == true
-        if not forEachOk then
-            scanFailed = true
-            local failKey = "foreachfail:" .. tostring(unit or "?") .. ":" .. tostring(auraType or "?")
-            local errText = tostring(forEachError or "unknown error")
-            errText = errText:gsub("\r", " "):gsub("\n", " | ")
-            self:LogAuraDebug(db, failKey, string.format(
-                "[CombatAuras][ForEachAuraFail] unit=%s type=%s combat=%s filter=%s err=%s",
-                tostring(unit or "?"),
-                tostring(auraType or "?"),
-                tostring(self:IsPlayerInCombat()),
-                tostring(filter),
-                errText
-            ), 2.0)
-            if forEachStack and forEachStack ~= "" then
-                self:LogAuraDebug(db, failKey .. ":stack", "[CombatAuras][ForEachAuraFail][Stack] " .. tostring(forEachStack), 2.0)
+        if safeAura and safeAura.spellId then
+            return AddAuraTimingMeta(safeAura)
+        end
+
+        local instanceId = SafeNumberOrNil(SafeAuraField(auraData, "auraInstanceID"))
+        if instanceId then
+            local refreshed = GetAuraDataByInstanceID(unit, instanceId)
+            if refreshed then
+                SafeAuraCallback(function()
+                    safeAura = SanitizeAuraData(refreshed)
+                end)
             end
+        end
+        return AddAuraTimingMeta(safeAura)
+    end
+
+    local function TryCollectAura(rawAura)
+        stats.rawCount = stats.rawCount + 1
+        local safeAura = ResolveAuraData(rawAura)
+        if not safeAura then
+            return
+        end
+
+        if safeAura._durationInvalid then
+            self:LogAuraInvalidFieldOnce(db, unit, auraType, safeAura, "duration", safeAura._durationRaw)
+        end
+        if safeAura._expirationInvalid then
+            self:LogAuraInvalidFieldOnce(db, unit, auraType, safeAura, "expirationTime", safeAura._expirationRaw)
+        end
+
+        local shouldShow = false
+        SafeAuraCallback(function()
+            shouldShow = self:ShouldShowAura(safeAura, unit, auraType, db, combatLookupContext) and true or false
+        end)
+        if shouldShow then
+            table.insert(auras, safeAura)
+            stats.passedCount = stats.passedCount + 1
+        end
+    end
+
+    local scanCompleted = false
+    local forEachOk = false
+    if ForEachAura then
+        local ok = xpcall(function()
+            ForEachAura(unit, filter, nil, function(...)
+                SafeAuraCallback(function(auraData)
+                    TryCollectAura(auraData)
+                end, ...)
+                return false
+            end, true)
+            forEachOk = true
+            scanCompleted = true
+        end, debugstack)
+        if not ok then
+            forEachOk = false
             stats.rawCount = 0
             stats.passedCount = 0
             stats.method = "UnitAuraFallback"
+            SecretSafe.LogOnce("for_each_aura_fail", "|cffff0000lilyUI|r Aura scan failed (suppressed); retrying on next update.")
         end
     else
         stats.method = "UnitAuraFallback"
     end
 
     if not ForEachAura or not forEachOk then
-        -- Fallback for older API / error cases
         local index = 1
+        local fallbackOk = true
         while true do
-            local ok, name, icon, count, dispelType, duration, expirationTime, source, isStealable, nameplateShowPersonal,
-                spellId, canApplyAura, isBossDebuff, castByPlayer, nameplateShowAll, timeMod, value1, value2, value3,
-                auraInstanceID = pcall(UnitAura, unit, index, filter)
+            local ok, name, icon, count, dispelType, duration, expirationTime, source, _, _, spellId, _, isBossDebuff, _, _, _, _, _, _, auraInstanceID = pcall(UnitAura, unit, index, filter)
             if not ok then
-                fallbackErrored = true
+                fallbackOk = false
                 break
             end
-            if not name then break end
-            stats.rawCount = stats.rawCount + 1
+            if not name then
+                break
+            end
 
             local auraData = {
                 name = name,
@@ -1821,82 +1692,37 @@ function UnitFrames:CollectAuras(unit, auraType, db)
                 isBossAura = isBossDebuff,
             }
 
-            local safeAura = ResolveAuraData(auraData)
-            if safeAura then
-                if safeAura._durationInvalid then
-                    self:LogAuraInvalidFieldOnce(db, unit, auraType, safeAura, "duration", safeAura._durationRaw)
-                end
-                if safeAura._expirationInvalid then
-                    self:LogAuraInvalidFieldOnce(db, unit, auraType, safeAura, "expirationTime", safeAura._expirationRaw)
-                end
-                local decisionOk, shouldShow = xpcall(function()
-                    return self:ShouldShowAura(safeAura, unit, auraType, db, combatLookupContext)
-                end, function(err)
-                    local errText = tostring(err or "unknown error"):gsub("\r", " "):gsub("\n", " | ")
-                    self:LogAuraDebug(db,
-                        "aurafilterfb:" .. tostring(unit or "?") .. ":" .. tostring(auraType or "?"),
-                        string.format("[CombatAuras][FilterDecisionError][Fallback] unit=%s type=%s combat=%s spellID=%s err=%s",
-                            tostring(unit or "?"),
-                            tostring(auraType or "?"),
-                            tostring(self:IsPlayerInCombat()),
-                            tostring(SafeSpellKey(safeAura.spellId) or "nil"),
-                            errText
-                        ),
-                        1.0
-                    )
-                    return err
-                end)
-                if decisionOk and shouldShow then
-                    table.insert(auras, safeAura)
-                    stats.passedCount = stats.passedCount + 1
-                end
-            end
-
+            SafeAuraCallback(function()
+                TryCollectAura(auraData)
+            end)
             index = index + 1
         end
-    end
-    
-    -- Sort auras
-    self:SortAuras(auras, auraType, db)
-
-    local hasValidList = true
-    if scanFailed and fallbackErrored then
-        local cachedByUnit = self._lastGoodAuras[unit]
-        local cached = cachedByUnit and cachedByUnit[auraType]
-        if type(cached) == "table" then
-            auras = {}
-            for i = 1, #cached do
-                auras[i] = cached[i]
-            end
-            stats.rawCount = #auras
-            stats.passedCount = #auras
-            stats.method = "LastGoodCache"
-            self:LogAuraDebug(db,
-                "recover:" .. tostring(unit or "?") .. ":" .. tostring(auraType or "?"),
-                string.format("[CombatAuras][Recover] using lastGood cache unit=%s type=%s",
-                    tostring(unit or "?"),
-                    tostring(auraType or "?")
-                ),
-                0.2
-            )
-        else
-            hasValidList = false
-        end
+        scanCompleted = fallbackOk
     end
 
-    if hasValidList then
-        local byUnit = self._lastGoodAuras[unit]
-        if type(byUnit) ~= "table" then
-            byUnit = {}
-            self._lastGoodAuras[unit] = byUnit
-        end
-        byUnit[auraType] = {}
-        for i = 1, #auras do
-            byUnit[auraType][i] = auras[i]
-        end
+    local sortOk = xpcall(function()
+        self:SortAuras(auras, auraType, db)
+    end, debugstack)
+    if not sortOk then
+        SecretSafe.LogOnce("aura_sort_fail", "|cffff0000lilyUI|r Aura sort failed (suppressed); using unsorted order.")
     end
 
-    return auras, stats, combatLookupContext, hasValidList
+    if not scanCompleted then
+        return auras, stats, combatLookupContext, false
+    end
+
+    self._lastGoodAuras = self._lastGoodAuras or {}
+    local byUnit = self._lastGoodAuras[unit]
+    if type(byUnit) ~= "table" then
+        byUnit = {}
+        self._lastGoodAuras[unit] = byUnit
+    end
+    byUnit[auraType] = {}
+    for i = 1, #auras do
+        byUnit[auraType][i] = auras[i]
+    end
+
+    return auras, stats, combatLookupContext, true
 end
 
 --[[
@@ -1908,48 +1734,50 @@ function UnitFrames:SortAuras(auras, auraType, db)
     db = db or self:GetDB()
     local sortMethod = db[(auraType == "BUFF" and "buff" or "debuff") .. "SortMethod"] or "TIME"
 
-    -- Retail can return some aura fields as "secret values" (userdata). These cannot be
-    -- compared (==, ~=, <, >) or used in arithmetic. So we coerce values into plain Lua
-    -- booleans/numbers/strings before sorting.
-    local function asBool(v)
-        local t = type(v)
-        if t == "nil" or t == "userdata" then return false end
-        if t == "boolean" then return v end
-        return true
-    end
-    local function asNumberOrNil(v)
-        return (type(v) == "number") and v or nil
-    end
-    local function asString(v)
-        return (type(v) == "string") and v or ""
-    end
-
-    table.sort(auras, function(a, b)
-        -- Boss auras first (safe boolean compare)
+    local function AuraSort(a, b)
         local aBoss = SafeBool(a.isBossAura)
         local bBoss = SafeBool(b.isBossAura)
         if aBoss ~= bBoss then
             return aBoss
         end
 
-        -- Then by sort method (only do arithmetic on real numbers)
-        if sortMethod == "TIME" then
-            local now = GetTime()
-            local aExp = SafeNumberOrNil(a.expirationTime)
-            local bExp = SafeNumberOrNil(b.expirationTime)
-            local aRemaining = (aExp and aExp > 0) and (aExp - now) or 999999
-            local bRemaining = (bExp and bExp > 0) and (bExp - now) or 999999
-            return SafeCompare(aRemaining, bRemaining) < 0
-        elseif sortMethod == "DURATION" then
-            local aDur = SafeNumber(a.duration, 0) or 999999
-            local bDur = SafeNumber(b.duration, 0) or 999999
-            return SafeCompare(aDur, bDur) < 0
-        elseif sortMethod == "NAME" then
-            return asString(a.name) < asString(b.name)
+        if sortMethod == "NAME" then
+            local aName = type(a.name) == "string" and a.name or ""
+            local bName = type(b.name) == "string" and b.name or ""
+            if aName ~= bName then
+                return aName < bName
+            end
         end
 
-        return false
-    end)
+        local aTimed = a.sortIsTimed == true
+        local bTimed = b.sortIsTimed == true
+        if aTimed ~= bTimed then
+            return aTimed
+        end
+
+        local aKey = SafeNumberOrNil(a.sortExp) or math.huge
+        local bKey = SafeNumberOrNil(b.sortExp) or math.huge
+        if aKey ~= bKey then
+            return aKey < bKey
+        end
+
+        local aID = SafeNumberOrNil(a.auraInstanceID) or 0
+        local bID = SafeNumberOrNil(b.auraInstanceID) or 0
+        if aID ~= bID then
+            return aID < bID
+        end
+
+        local aSpell = SafeNumberOrNil(a.spellId) or 0
+        local bSpell = SafeNumberOrNil(b.spellId) or 0
+        return aSpell < bSpell
+    end
+
+    local ok = xpcall(function()
+        table.sort(auras, AuraSort)
+    end, debugstack)
+    if not ok then
+        SecretSafe.LogOnce("aura_sort_fail_internal", "|cffff0000lilyUI|r Aura sort failed (suppressed); using unsorted order.")
+    end
 end
 
 -- ============================================================================
@@ -2358,7 +2186,7 @@ function UnitFrames:UpdateAuraIconsForType(frame, auraType, db)
     if hasValidAuraList == false then
         self:LogAuraDebug(db,
             "skipupdate:" .. tostring(frame.unit or "?") .. ":" .. tostring(auraType or "?"),
-            string.format("[CombatAuras][Recover] skip icon wipe/update unit=%s type=%s (invalid scan/no cache)",
+            string.format("[CombatAuras][ScanRetry] skip icon wipe/update unit=%s type=%s (scan incomplete; retry next event)",
                 tostring(frame.unit or "?"),
                 tostring(auraType or "?")
             ),
@@ -2401,9 +2229,22 @@ function UnitFrames:UpdateAuraIconsForType(frame, auraType, db)
         local auraData = auras[i]
         
         if icon and auraData then
-            self:UpdateSingleAuraIcon(icon, auraData, db, combatLookupContext)
-            icon:Show()
-            self:_RegisterAuraDurationIcon(icon)
+            local iconOk = xpcall(function()
+                self:UpdateSingleAuraIcon(icon, auraData, db, combatLookupContext)
+            end, debugstack)
+            if iconOk then
+                icon:Show()
+            else
+                SecretSafe.LogOnce("aura_icon_apply_fail", "|cffff0000lilyUI|r Aura icon update error (suppressed); continuing.")
+                icon:Hide()
+                self:_UnregisterAuraDurationIcon(icon)
+                if icon.cooldown then
+                    icon.cooldown:Hide()
+                end
+                if icon.duration then
+                    icon.duration:Hide()
+                end
+            end
         end
     end
 
@@ -2483,16 +2324,22 @@ function UnitFrames:UpdateSingleAuraIcon(icon, auraData, db, combatLookupContext
     end
 
     -- Update stack count
-    local stacks = SafeNumber(auraData.applications, 0)
-    if stacks >= (icon.stackMinimum or 2) then
-        icon.count:SetText(stacks)
+    if type(auraData.countText) == "string" and auraData.countText ~= "" then
+        icon.count:SetText(auraData.countText)
         icon.count:Show()
     else
-        icon.count:SetText("")
-        icon.count:Hide()
+        local stacks = SafeNumber(auraData.applications, 0)
+        if stacks >= (icon.stackMinimum or 2) then
+            icon.count:SetText(stacks)
+            icon.count:Show()
+        else
+            icon.count:SetText("")
+            icon.count:Hide()
+        end
     end
 
-    local durationObj = GetAuraDurationObject(icon.unit, icon.auraInstanceID)
+    local durationObj = auraData.durationObj or GetAuraDurationObject(icon.unit, icon.auraInstanceID)
+    icon._usesDurationObject = false
     if durationObj then
         local total, expTime = ResolveDurationFromObject(durationObj)
         if total and expTime then
@@ -2504,9 +2351,7 @@ function UnitFrames:UpdateSingleAuraIcon(icon, auraData, db, combatLookupContext
         end
     end
 
-    -- Update cooldown directly from current numeric timing every refresh.
-    local dur = icon._duration
-    local exp = icon._expTime
+    -- Update cooldown with DurationObject-first logic.
     if showSwipe and icon.cooldown then
         local cooldownApplied = false
         local cooldown = icon.cooldown
@@ -2515,18 +2360,7 @@ function UnitFrames:UpdateSingleAuraIcon(icon, auraData, db, combatLookupContext
             local okObj = pcall(cooldown.SetCooldownFromDurationObject, cooldown, durationObj, true)
             if okObj then
                 cooldownApplied = true
-            end
-        end
-
-        local safeDur = SafePositiveNumber(dur)
-        local safeExp = SafePositiveNumber(exp)
-        if not cooldownApplied and safeDur and safeExp then
-            local startTime = TrySafeNumber(safeExp - safeDur)
-            if startTime then
-                local okSet = pcall(cooldown.SetCooldown, cooldown, startTime, safeDur)
-                if okSet then
-                    cooldownApplied = true
-                end
+                icon._usesDurationObject = true
             end
         end
 
@@ -2548,15 +2382,12 @@ function UnitFrames:UpdateSingleAuraIcon(icon, auraData, db, combatLookupContext
         icon.cooldown:Hide()
     end
 
-    local hasDuration = SafePositiveNumber(dur) and SafePositiveNumber(exp)
-    if not hasDuration then
-        if icon.duration then
-            icon.duration:SetText("")
-            icon.duration:Hide()
-        end
-        if icon.expiring then
-            icon.expiring:Hide()
-        end
+    if icon.duration then
+        icon.duration:SetText("")
+        icon.duration:Hide()
+    end
+    if icon.expiring then
+        icon.expiring:Hide()
     end
 
     if not showText and icon.duration then

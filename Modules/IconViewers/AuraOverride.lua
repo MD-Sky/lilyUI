@@ -1,11 +1,9 @@
 local ADDON_NAME, ns = ...
 local LilyUI = ns.Addon
+local SecretSafe = ns.SecretSafe or {}
 
 LilyUI.AuraOverride = LilyUI.AuraOverride or {}
 local AuraOverride = LilyUI.AuraOverride
-
--- Track which viewers have ignoreAuraOverride enabled
-local viewerSettings = {}
 
 -- Get settings for a viewer
 local function GetViewerSettings(viewerName)
@@ -29,6 +27,72 @@ local function GetSpellID(iconFrame)
         return iconFrame.cooldownInfo.overrideSpellID or iconFrame.cooldownInfo.spellID
     end
     return nil
+end
+
+local function GetCooldownDurationObject(spellID)
+    if type(C_Spell) == "table" and type(C_Spell.GetSpellCooldownDuration) == "function" then
+        local ok, obj = pcall(C_Spell.GetSpellCooldownDuration, spellID)
+        if ok and obj then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function GetChargeDurationObject(spellID)
+    if type(C_Spell) == "table" and type(C_Spell.GetSpellChargeDuration) == "function" then
+        local ok, obj = pcall(C_Spell.GetSpellChargeDuration, spellID)
+        if ok and obj then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function GetNumericCooldownFallback(spellID)
+    if type(C_Spell) == "table" and type(C_Spell.GetSpellCooldown) == "function" then
+        local ok, info = pcall(C_Spell.GetSpellCooldown, spellID)
+        if not ok or not info then
+            return nil, nil, false
+        end
+        local startTime = type(SecretSafe.NumberOrNil) == "function" and SecretSafe.NumberOrNil(info.startTime) or nil
+        local duration = type(SecretSafe.NumberOrNil) == "function" and SecretSafe.NumberOrNil(info.duration) or nil
+        local isOnGCD = info.isOnGCD == true
+        return startTime, duration, isOnGCD
+    end
+    return nil, nil, false
+end
+
+local function ApplySpellCooldownToFrame(cooldownFrame, spellID)
+    if not cooldownFrame or not spellID then
+        return false, nil, false
+    end
+
+    local durObj = GetCooldownDurationObject(spellID)
+    if durObj and cooldownFrame.SetCooldownFromDurationObject then
+        local ok = pcall(cooldownFrame.SetCooldownFromDurationObject, cooldownFrame, durObj, true)
+        if ok then
+            return true, "cooldown_object", false
+        end
+    end
+
+    local chargeObj = GetChargeDurationObject(spellID)
+    if chargeObj and cooldownFrame.SetCooldownFromDurationObject then
+        local ok = pcall(cooldownFrame.SetCooldownFromDurationObject, cooldownFrame, chargeObj, true)
+        if ok then
+            return true, "charge_object", false
+        end
+    end
+
+    local startTime, duration, isOnGCD = GetNumericCooldownFallback(spellID)
+    if type(startTime) == "number" and type(duration) == "number" and duration > 0 and cooldownFrame.SetCooldown then
+        local ok = pcall(cooldownFrame.SetCooldown, cooldownFrame, startTime, duration)
+        if ok then
+            return true, "numeric_fallback", isOnGCD
+        end
+    end
+
+    return false, nil, isOnGCD
 end
 
 -- Apply desaturation when aura is active but we're showing spell cooldown
@@ -60,6 +124,41 @@ local function ApplyDesaturationForAuraActive(iconFrame, desaturate)
             iconTexture:SetDesaturated(false)
         end
     end
+end
+
+local function ApplyOverrideCooldown(cooldownFrame, iconFrame, spellID)
+    if not cooldownFrame or not iconFrame or not spellID then
+        return false, nil
+    end
+
+    local shown, source, isOnGCD = ApplySpellCooldownToFrame(cooldownFrame, spellID)
+    if shown then
+        if cooldownFrame.SetSwipeColor then
+            cooldownFrame:SetSwipeColor(0, 0, 0, 0.8)
+        end
+        cooldownFrame:Show()
+        if source == "charge_object" then
+            iconFrame.__lilyuiForceDesatValue = nil
+            ApplyDesaturationForAuraActive(iconFrame, false)
+        else
+            if not isOnGCD then
+                iconFrame.__lilyuiForceDesatValue = 1
+                ApplyDesaturationForAuraActive(iconFrame, true)
+            else
+                iconFrame.__lilyuiForceDesatValue = nil
+                ApplyDesaturationForAuraActive(iconFrame, false)
+            end
+        end
+        return true, source
+    end
+
+    iconFrame.__lilyuiForceDesatValue = nil
+    ApplyDesaturationForAuraActive(iconFrame, false)
+    if cooldownFrame.Clear then
+        pcall(cooldownFrame.Clear, cooldownFrame)
+    end
+    cooldownFrame:Hide()
+    return false, nil
 end
 
 -- Hook SetCooldown to enforce spell cooldown when ignoreAuraOverride is enabled
@@ -124,53 +223,11 @@ local function HookCooldownFrame(iconFrame, viewerName)
         local ignoreAuraOverride = GetViewerSettings(viewerName)
         
         if ignoreAuraOverride and HasActiveAura(parentFrame) then
-            -- Aura is active, but we want to show spell cooldown instead
             local spellID = GetSpellID(parentFrame)
             if spellID then
-                -- Check if this is a charge spell
-                local chargeInfo = nil
-                local isChargeSpell = false
-                pcall(function()
-                    chargeInfo = C_Spell.GetSpellCharges(spellID)
-                    isChargeSpell = chargeInfo ~= nil
-                end)
-                
-                if isChargeSpell and C_Spell.GetSpellChargeDuration then
-                    -- CHARGE SPELL: Use charge duration object (shows charge recharge swipe)
-                    -- For charge spells, don't force desaturation - let CDM handle it based on charge availability
-                    local ok, chargeDurObj = pcall(C_Spell.GetSpellChargeDuration, spellID)
-                    if ok and chargeDurObj then
-                        parentFrame.__lilyuiBypassCooldownHook = true
-                        pcall(function()
-                            if self.SetCooldownFromDurationObject then
-                                self:SetCooldownFromDurationObject(chargeDurObj)
-                            end
-                        end)
-                        parentFrame.__lilyuiBypassCooldownHook = false
-                        -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
-                        if self.SetSwipeColor then
-                            self:SetSwipeColor(0, 0, 0, 0.8)
-                        end
-                        -- Don't force desaturation for charge spells - let CDM handle it naturally
-                    end
-                else
-                    -- NORMAL SPELL: Use regular spell cooldown
-                    local ok, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-                    if ok and cooldownInfo and cooldownInfo.duration and cooldownInfo.startTime then
-                        -- Use spell cooldown instead of aura duration
-                        parentFrame.__lilyuiBypassCooldownHook = true
-                        self:SetCooldown(cooldownInfo.startTime, cooldownInfo.duration)
-                        -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
-                        if self.SetSwipeColor then
-                            self:SetSwipeColor(0, 0, 0, 0.8)
-                        end
-                        parentFrame.__lilyuiBypassCooldownHook = false
-                        -- Set force desaturation value - hooks will enforce it
-                        parentFrame.__lilyuiForceDesatValue = 1
-                        -- Apply desaturation since aura is active
-                        ApplyDesaturationForAuraActive(parentFrame, true)
-                    end
-                end
+                parentFrame.__lilyuiBypassCooldownHook = true
+                ApplyOverrideCooldown(self, parentFrame, spellID)
+                parentFrame.__lilyuiBypassCooldownHook = false
             end
         elseif ignoreAuraOverride then
             -- Clear force desaturation when aura is not active
@@ -191,51 +248,11 @@ local function HookCooldownFrame(iconFrame, viewerName)
             local ignoreAuraOverride = GetViewerSettings(viewerName)
             
             if ignoreAuraOverride and HasActiveAura(parentFrame) then
-                -- Aura is active, but we want to show spell cooldown instead
                 local spellID = GetSpellID(parentFrame)
                 if spellID then
-                    -- Check if this is a charge spell
-                    local chargeInfo = nil
-                    local isChargeSpell = false
-                    pcall(function()
-                        chargeInfo = C_Spell.GetSpellCharges(spellID)
-                        isChargeSpell = chargeInfo ~= nil
-                    end)
-                    
-                    if isChargeSpell and C_Spell.GetSpellChargeDuration then
-                        -- CHARGE SPELL: Use charge duration object (shows charge recharge swipe)
-                        -- For charge spells, don't force desaturation - let CDM handle it based on charge availability
-                        local ok, chargeDurObj = pcall(C_Spell.GetSpellChargeDuration, spellID)
-                        if ok and chargeDurObj then
-                            parentFrame.__lilyuiBypassCooldownHook = true
-                            pcall(function()
-                                self:SetCooldownFromDurationObject(chargeDurObj)
-                            end)
-                            parentFrame.__lilyuiBypassCooldownHook = false
-                            -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
-                            if self.SetSwipeColor then
-                                self:SetSwipeColor(0, 0, 0, 0.8)
-                            end
-                            -- Don't force desaturation for charge spells - let CDM handle it naturally
-                        end
-                    else
-                        -- NORMAL SPELL: Use regular spell cooldown
-                        local ok, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-                        if ok and cooldownInfo and cooldownInfo.duration and cooldownInfo.startTime then
-                            -- Use spell cooldown instead of aura duration
-                            parentFrame.__lilyuiBypassCooldownHook = true
-                            self:SetCooldown(cooldownInfo.startTime, cooldownInfo.duration)
-                            -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
-                            if self.SetSwipeColor then
-                                self:SetSwipeColor(0, 0, 0, 0.8)
-                            end
-                            parentFrame.__lilyuiBypassCooldownHook = false
-                            -- Set force desaturation value - hooks will enforce it
-                            parentFrame.__lilyuiForceDesatValue = 1
-                            -- Apply desaturation since aura is active
-                            ApplyDesaturationForAuraActive(parentFrame, true)
-                        end
-                    end
+                    parentFrame.__lilyuiBypassCooldownHook = true
+                    ApplyOverrideCooldown(self, parentFrame, spellID)
+                    parentFrame.__lilyuiBypassCooldownHook = false
                 end
             elseif ignoreAuraOverride then
                 -- Clear force desaturation when aura is not active
@@ -275,42 +292,7 @@ function AuraOverride:RefreshViewer(viewer)
             if HasActiveAura(icon) then
                 local spellID = GetSpellID(icon)
                 if spellID and icon.Cooldown then
-                    -- Check if this is a charge spell
-                    local chargeInfo = nil
-                    local isChargeSpell = false
-                    pcall(function()
-                        chargeInfo = C_Spell.GetSpellCharges(spellID)
-                        isChargeSpell = chargeInfo ~= nil
-                    end)
-                    
-                    if isChargeSpell and C_Spell.GetSpellChargeDuration then
-                        -- CHARGE SPELL: Use charge duration object (shows charge recharge swipe)
-                        -- For charge spells, don't force desaturation - let CDM handle it based on charge availability
-                        local ok, chargeDurObj = pcall(C_Spell.GetSpellChargeDuration, spellID)
-                        if ok and chargeDurObj and icon.Cooldown.SetCooldownFromDurationObject then
-                            pcall(function()
-                                icon.Cooldown:SetCooldownFromDurationObject(chargeDurObj)
-                            end)
-                            -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
-                            if icon.Cooldown.SetSwipeColor then
-                                icon.Cooldown:SetSwipeColor(0, 0, 0, 0.8)
-                            end
-                            -- Don't force desaturation for charge spells - let CDM handle it naturally
-                        end
-                    else
-                        -- NORMAL SPELL: Use regular spell cooldown
-                        local ok, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-                        if ok and cooldownInfo and cooldownInfo.duration and cooldownInfo.startTime then
-                            icon.Cooldown:SetCooldown(cooldownInfo.startTime, cooldownInfo.duration)
-                            -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
-                            if icon.Cooldown.SetSwipeColor then
-                                icon.Cooldown:SetSwipeColor(0, 0, 0, 0.8)
-                            end
-                            -- Set force desaturation value - hooks will enforce it
-                            icon.__lilyuiForceDesatValue = 1
-                            ApplyDesaturationForAuraActive(icon, true)
-                        end
-                    end
+                    ApplyOverrideCooldown(icon.Cooldown, icon, spellID)
                 end
             end
         end

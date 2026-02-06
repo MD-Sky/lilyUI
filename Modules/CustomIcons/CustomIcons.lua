@@ -1,5 +1,6 @@
 local ADDON_NAME, ns = ...
 local LilyUI = ns.Addon
+local SecretSafe = ns.SecretSafe or {}
 
 LilyUI.CustomIcons = LilyUI.CustomIcons or {}
 local CustomIcons = LilyUI.CustomIcons
@@ -180,6 +181,76 @@ end
 -- ------------------------
 local IsCooldownFrameActive
 
+local function GetSpellCooldownDurationObject(spellID)
+    if type(C_Spell) == "table" and type(C_Spell.GetSpellCooldownDuration) == "function" then
+        local ok, obj = pcall(C_Spell.GetSpellCooldownDuration, spellID)
+        if ok and obj then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function GetSpellChargeDurationObject(spellID)
+    if type(C_Spell) == "table" and type(C_Spell.GetSpellChargeDuration) == "function" then
+        local ok, obj = pcall(C_Spell.GetSpellChargeDuration, spellID)
+        if ok and obj then
+            return obj
+        end
+    end
+    return nil
+end
+
+local function GetSpellCooldownNumericSafe(spellID)
+    if type(C_Spell) == "table" and type(C_Spell.GetSpellCooldown) == "function" then
+        local ok, info = pcall(C_Spell.GetSpellCooldown, spellID)
+        if not ok or not info then
+            return nil, nil, false
+        end
+        local start = type(SecretSafe.NumberOrNil) == "function" and SecretSafe.NumberOrNil(info.startTime) or nil
+        local duration = type(SecretSafe.NumberOrNil) == "function" and SecretSafe.NumberOrNil(info.duration) or nil
+        return start, duration, info.isOnGCD == true
+    end
+
+    local ok, start, duration = pcall(GetSpellCooldown, spellID)
+    if ok and type(start) == "number" and type(duration) == "number" then
+        return start, duration, false
+    end
+    return nil, nil, false
+end
+
+local function ApplySpellCooldownSafe(cooldownFrame, spellID)
+    if not cooldownFrame or not spellID then
+        return false
+    end
+
+    local durObj = GetSpellCooldownDurationObject(spellID)
+    if durObj and cooldownFrame.SetCooldownFromDurationObject then
+        local ok = pcall(cooldownFrame.SetCooldownFromDurationObject, cooldownFrame, durObj, true)
+        if ok then
+            return true
+        end
+    end
+
+    local chargeObj = GetSpellChargeDurationObject(spellID)
+    if chargeObj and cooldownFrame.SetCooldownFromDurationObject then
+        local ok = pcall(cooldownFrame.SetCooldownFromDurationObject, cooldownFrame, chargeObj, true)
+        if ok then
+            return true
+        end
+    end
+
+    local start, duration = GetSpellCooldownNumericSafe(spellID)
+    if type(start) == "number" and type(duration) == "number" and duration > 0 and cooldownFrame.SetCooldown then
+        local ok = pcall(cooldownFrame.SetCooldown, cooldownFrame, start, duration)
+        if ok then
+            return true
+        end
+    end
+
+    return false
+end
+
 local function UpdateItemIcon(iconFrame, iconData)
     local itemID = iconData.id
     if not itemID or not iconFrame then return end
@@ -250,51 +321,32 @@ local function UpdateSpellIconFrame(iconFrame, iconData)
     local allowUnusableDesat = not (iconData.settings and iconData.settings.desaturateWhenUnusable == false)
     local showGCDSwipe = (iconData.settings and iconData.settings.showGCDSwipe == true)
 
-    -- Get cooldown info with protected call to handle secret values
     local cooldownSet = false
     local isOnCooldown = false
     local ignoreGCD = false
     local isGCDOnly = false
-    local ok, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-    if ok and cooldownInfo then
-        local setOk = pcall(function()
-            -- Ignore GCD-only updates so we don't desaturate just for the global cooldown.
-            if cooldownInfo.isOnGCD == true then
-                if not showGCDSwipe then
-                    iconFrame.cooldown:Clear()
-                    if iconFrame.cooldownProbe then
-                        iconFrame.cooldownProbe:Clear()
-                    end
-                    cooldownSet = false
-                    ignoreGCD = true
-                    return
-                end
-                isGCDOnly = true
-            end
+    local _, _, isOnGCD = GetSpellCooldownNumericSafe(spellID)
 
-            if cooldownInfo.duration and cooldownInfo.startTime then
-                iconFrame.cooldown:SetCooldown(cooldownInfo.startTime, cooldownInfo.duration)
-                if iconFrame.cooldownProbe then
-                    iconFrame.cooldownProbe:SetCooldown(cooldownInfo.startTime, cooldownInfo.duration)
-                end
-                cooldownSet = true
+    if isOnGCD then
+        if not showGCDSwipe then
+            iconFrame.cooldown:Clear()
+            if iconFrame.cooldownProbe then
+                iconFrame.cooldownProbe:Clear()
             end
-        end)
-        -- Do not early-return; we still need to handle usability/desat logic
+            cooldownSet = false
+            ignoreGCD = true
+        else
+            isGCDOnly = true
+        end
     end
 
-    -- Fallback to old API if C_Spell failed
-    local fallbackOk = pcall(function()
-        if ignoreGCD then return end
-        local start, duration = GetSpellCooldown(spellID)
-        if start and duration then
-            iconFrame.cooldown:SetCooldown(start, duration)
-            if iconFrame.cooldownProbe then
-                iconFrame.cooldownProbe:SetCooldown(start, duration)
-            end
-            cooldownSet = true
+    if not ignoreGCD then
+        cooldownSet = ApplySpellCooldownSafe(iconFrame.cooldown, spellID)
+        if iconFrame.cooldownProbe then
+            local probeSet = ApplySpellCooldownSafe(iconFrame.cooldownProbe, spellID)
+            cooldownSet = cooldownSet or probeSet
         end
-    end)
+    end
 
     -- Clear cooldown if we couldn't set it
     if not cooldownSet then
@@ -338,13 +390,32 @@ local function UpdateSpellIconFrame(iconFrame, iconData)
 
     local rechargeActive = false
     if isChargeSpell then
-        if chargesInfo.cooldownStartTime and chargesInfo.cooldownDuration then
-            pcall(function()
-                iconFrame.cooldown:SetCooldown(chargesInfo.cooldownStartTime, chargesInfo.cooldownDuration)
-                if iconFrame.cooldownChargeProbe then
-                    iconFrame.cooldownChargeProbe:SetCooldown(chargesInfo.cooldownStartTime, chargesInfo.cooldownDuration)
-                end
-            end)
+        local chargeSet = false
+        local chargeObj = GetSpellChargeDurationObject(spellID)
+        if chargeObj and iconFrame.cooldown.SetCooldownFromDurationObject then
+            local okMain = pcall(iconFrame.cooldown.SetCooldownFromDurationObject, iconFrame.cooldown, chargeObj, true)
+            local okProbe = true
+            if iconFrame.cooldownChargeProbe and iconFrame.cooldownChargeProbe.SetCooldownFromDurationObject then
+                okProbe = pcall(iconFrame.cooldownChargeProbe.SetCooldownFromDurationObject, iconFrame.cooldownChargeProbe, chargeObj, true)
+            end
+            chargeSet = okMain or okProbe
+        end
+
+        if not chargeSet then
+            local chargeStart = type(SecretSafe.NumberOrNil) == "function" and SecretSafe.NumberOrNil(chargesInfo and chargesInfo.cooldownStartTime) or nil
+            local chargeDuration = type(SecretSafe.NumberOrNil) == "function" and SecretSafe.NumberOrNil(chargesInfo and chargesInfo.cooldownDuration) or nil
+            if type(chargeStart) == "number" and type(chargeDuration) == "number" and chargeDuration > 0 then
+                pcall(function()
+                    iconFrame.cooldown:SetCooldown(chargeStart, chargeDuration)
+                    if iconFrame.cooldownChargeProbe then
+                        iconFrame.cooldownChargeProbe:SetCooldown(chargeStart, chargeDuration)
+                    end
+                end)
+                chargeSet = true
+            end
+        end
+
+        if chargeSet then
             rechargeActive = IsCooldownFrameActive(iconFrame.cooldownChargeProbe or iconFrame.cooldown)
         else
             iconFrame.cooldown:Clear()

@@ -46,6 +46,7 @@ Core\Debug.lua
 
 # Utility files
 Utils\Toolkit.lua
+Utils\SecretSafe.lua
 Utils\SpellProvider.lua
 Utils\PixelPerfect.lua
 Utils\Nudge.lua
