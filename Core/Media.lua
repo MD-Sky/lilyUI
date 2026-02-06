@@ -403,13 +403,13 @@ function LilyUI:ApplyGlobalFont()
         local function GetCooldownFontString(cooldownFrame)
             if not cooldownFrame then return nil end
             
-            if cooldownFrame._nephui_fontString then
-                return cooldownFrame._nephui_fontString
+            if cooldownFrame._lilyui_fontString then
+                return cooldownFrame._lilyui_fontString
             end
             
             for _, region in ipairs({cooldownFrame:GetRegions()}) do
                 if region:GetObjectType() == "FontString" then
-                    cooldownFrame._nephui_fontString = region
+                    cooldownFrame._lilyui_fontString = region
                     return region
                 end
             end
@@ -481,7 +481,7 @@ function LilyUI:ApplyGlobalFont()
                 
                 -- Use pcall to safely handle any errors during combat
                 pcall(function()
-                    cooldownFrame._nephui_fontString = nil
+                    cooldownFrame._lilyui_fontString = nil
                     C_Timer.After(0, function()
                         if cooldownFrame and not cooldownFrame:IsForbidden() then
                             pcall(ApplyCooldownFont, cooldownFrame)
@@ -499,7 +499,7 @@ function LilyUI:ApplyGlobalFont()
                 
                 -- Use pcall to safely handle any errors during combat
                 pcall(function()
-                    cooldownFrame._nephui_fontString = nil
+                    cooldownFrame._lilyui_fontString = nil
                     C_Timer.After(0, function()
                         if cooldownFrame and not cooldownFrame:IsForbidden() then
                             pcall(ApplyCooldownFont, cooldownFrame)
@@ -545,7 +545,7 @@ function LilyUI:ApplyGlobalFont()
                 local frame = EnumerateFrames()
                 while frame do
                     if frame:GetObjectType() == "Cooldown" then
-                        frame._nephui_fontString = nil
+                        frame._lilyui_fontString = nil
                         ApplyCooldownFont(frame)
                     end
                     frame = EnumerateFrames(frame)
@@ -577,7 +577,7 @@ function LilyUI:ApplyGlobalFont()
                             end
                         end
                         for _, cooldownFrame in ipairs(allIcons) do
-                            cooldownFrame._nephui_fontString = nil
+                            cooldownFrame._lilyui_fontString = nil
                             ApplyCooldownFont(cooldownFrame)
                         end
                     end
@@ -757,12 +757,12 @@ function LilyUI:ApplyGlobalFont()
             
             local function GetCooldownFontString(cooldownFrame)
                 if not cooldownFrame then return nil end
-                if cooldownFrame._nephui_fontString then
-                    return cooldownFrame._nephui_fontString
+                if cooldownFrame._lilyui_fontString then
+                    return cooldownFrame._lilyui_fontString
                 end
                 for _, region in ipairs({cooldownFrame:GetRegions()}) do
                     if region:GetObjectType() == "FontString" then
-                        cooldownFrame._nephui_fontString = region
+                        cooldownFrame._lilyui_fontString = region
                         return region
                     end
                 end
@@ -774,7 +774,7 @@ function LilyUI:ApplyGlobalFont()
                     local frame = EnumerateFrames()
                     while frame do
                         if frame:GetObjectType() == "Cooldown" then
-                            frame._nephui_fontString = nil -- Clear cache
+                            frame._lilyui_fontString = nil -- Clear cache
                             local fontString = GetCooldownFontString(frame)
                             if fontString then
                                 -- Identify which viewer/aura this cooldown belongs to

@@ -9,6 +9,7 @@ if not LilyUI then return end
 LilyUI.PartyFrames = LilyUI.PartyFrames or {}
 LilyUI.PartyFrames.ClickCast = LilyUI.PartyFrames.ClickCast or {}
 local ClickCast = LilyUI.PartyFrames.ClickCast
+local SpellProvider = ns.SpellProvider or (LilyUI and LilyUI.SpellProvider)
 
 -- ============================================================================
 -- ENGINE BRIDGE
@@ -128,6 +129,29 @@ local function CompatGetSpellInfo(spellIdentifier)
         return _G.GetSpellInfo(spellIdentifier)
     end
     return (type(spellIdentifier) == "string" and spellIdentifier or tostring(spellIdentifier)), nil, nil
+end
+
+local function ClickCastDebug(msg)
+    if not msg then return end
+    UF = UF or (LilyUI and LilyUI.PartyFrames)
+    if UF and UF.devMode and UF.DebugPrint then
+        UF:DebugPrint("[ClickCast] " .. tostring(msg))
+    end
+    if SpellProvider and SpellProvider.Log then
+        SpellProvider:Log("[ClickCast] " .. tostring(msg))
+    end
+end
+
+local function SafeTrim(value)
+    if type(value) == "string" then
+        return value:match("^%s*(.-)%s*$") or value
+    end
+    if value == nil then return "" end
+    local ok, str = pcall(tostring, value)
+    if ok and type(str) == "string" then
+        return str:match("^%s*(.-)%s*$") or str
+    end
+    return ""
 end
 
 local function CompatGetSpellName(spellID)
@@ -280,121 +304,15 @@ end
 -- Build a spell list from the player's spellbook.
 -- Uses C_SpellBook (modern) with fallbacks.
 function ClickCast:BuildSpellCache()
+    if SpellProvider and SpellProvider.EnsureBuilt then
+        SpellProvider:EnsureBuilt(true)
+        self._spellCache = SpellProvider:GetCache()
+        self._spellCacheBuilt = SpellProvider:IsBuilt()
+        return
+    end
+
     self._spellCache = self._spellCache or { all = {}, general = {}, class = {}, spec = {} }
-    wipe(self._spellCache.all)
-    wipe(self._spellCache.general)
-    wipe(self._spellCache.class)
-    wipe(self._spellCache.spec)
-
-    if LilyUI and LilyUI.DebugLog then
-        LilyUI:DebugLog("ClickCastUI: BuildSpellCache() start")
-    end
-
-    local specName
-    if GetSpecialization and GetSpecializationInfo then
-        local specIndex = GetSpecialization()
-        if specIndex then
-            local _, name = GetSpecializationInfo(specIndex)
-            specName = name
-        end
-    end
-
-    local seen = {}
-
-    local function AddSpell(spellID, skillLineName, skillLineIndex)
-        if not spellID or spellID == 0 or seen[spellID] then
-            return
-        end
-        local spellName = (C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spellID)) or select(1, CompatGetSpellInfo(spellID))
-        if not spellName or spellName == "" then
-            return
-        end
-
-        local _, _, icon = CompatGetSpellInfo(spellID)
-        if (not icon) and C_Spell and C_Spell.GetSpellTexture then
-            local ok, t = pcall(C_Spell.GetSpellTexture, spellID)
-            if ok then icon = t end
-        end
-
-        seen[spellID] = true
-        local entry = {
-            spellID = spellID,
-            name = spellName,
-            icon = icon,
-            lineName = skillLineName,
-            lineIndex = skillLineIndex,
-        }
-        tinsert(self._spellCache.all, entry)
-
-        -- Categorize
-        local lineLower = skillLineName and strlower(skillLineName)
-        local isGeneral = (skillLineIndex == 1) or (lineLower == "general")
-        local isSpec = false
-        if specName and skillLineName and strlower(specName) == strlower(skillLineName) then
-            isSpec = true
-        end
-
-        if isGeneral then
-            tinsert(self._spellCache.general, entry)
-        elseif isSpec then
-            tinsert(self._spellCache.spec, entry)
-        else
-            tinsert(self._spellCache.class, entry)
-        end
-    end
-
-    if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines then
-        local bank = (Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player) or 0
-        local typeSpell = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.Spell
-        local typeFuture = Enum and Enum.SpellBookItemType and Enum.SpellBookItemType.FutureSpell
-
-        local numLines = C_SpellBook.GetNumSpellBookSkillLines() or 0
-        for i = 1, numLines do
-            local lineInfo = C_SpellBook.GetSpellBookSkillLineInfo(i)
-            local offset = lineInfo and lineInfo.itemIndexOffset or 0
-            local numSlots = lineInfo and lineInfo.numSpellBookItems or 0
-            local lineName = lineInfo and (lineInfo.name or lineInfo.skillLineName)
-
-            for slot = offset + 1, offset + numSlots do
-                local itemInfo = C_SpellBook.GetSpellBookItemInfo(slot, bank)
-                if itemInfo then
-                    local itemType = itemInfo.itemType
-                    local id = itemInfo.actionID
-                    if (typeSpell and itemType == typeSpell) or (typeFuture and itemType == typeFuture) or (not typeSpell and id) then
-                        AddSpell(id, lineName, i)
-                    end
-                end
-            end
-        end
-    elseif GetNumSpellTabs and GetSpellTabInfo and GetSpellBookItemInfo then
-        -- Legacy fallback
-        local tabs = GetNumSpellTabs() or 0
-        for i = 1, tabs do
-            local name, _, offset, numSlots = GetSpellTabInfo(i)
-            for j = offset + 1, offset + numSlots do
-                local skillType, spellID = GetSpellBookItemInfo(j, BOOKTYPE_SPELL)
-                if skillType == "SPELL" or skillType == "FUTURESPELL" then
-                    AddSpell(spellID, name, i)
-                end
-            end
-        end
-    end
-
-    sort(self._spellCache.all, function(a, b) return a.name < b.name end)
-    sort(self._spellCache.general, function(a, b) return a.name < b.name end)
-    sort(self._spellCache.class, function(a, b) return a.name < b.name end)
-    sort(self._spellCache.spec, function(a, b) return a.name < b.name end)
-
     self._spellCacheBuilt = true
-
-    if LilyUI and LilyUI.DebugLog then
-        LilyUI:DebugLog(
-            "ClickCastUI: Spell cache built - all=" .. tostring(#self._spellCache.all)
-                .. " general=" .. tostring(#self._spellCache.general)
-                .. " class=" .. tostring(#self._spellCache.class)
-                .. " spec=" .. tostring(#self._spellCache.spec)
-        )
-    end
 end
 
 local function FlattenBindings()
@@ -529,6 +447,8 @@ if not ClickCast._uiEventFrame then
     local ef = CreateFrame('Frame')
     ef:RegisterEvent('PLAYER_LEAVING_WORLD')
     ef:RegisterEvent('SPELLS_CHANGED')
+    ef:RegisterEvent('PLAYER_LOGIN')
+    ef:RegisterEvent('PLAYER_ENTERING_WORLD')
     ef:RegisterEvent('PLAYER_SPECIALIZATION_CHANGED')
     ef:RegisterEvent('PLAYER_TALENT_UPDATE')
 
@@ -670,6 +590,8 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
         txt:SetWidth(520)
         return
     end
+
+    ClickCastDebug("UI opened")
 
     -- Ensure we have a spell cache (spellbook can load/refresh after login/spec changes)
     if (not self._spellCacheBuilt) or (not self._spellCache) or (not self._spellCache.all) or (#self._spellCache.all == 0) then
@@ -1118,6 +1040,14 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
     btnClass:SetScript("OnClick", function() SetFilter("class") end)
     btnSpec:SetScript("OnClick", function() SetFilter("spec") end)
 
+    local searchBox = CreateFrame("EditBox", nil, right, "SearchBoxTemplate")
+    searchBox:SetSize(180, 20)
+    searchBox:SetPoint("TOPLEFT", filterBar, "BOTTOMLEFT", 0, -6)
+    searchBox:SetAutoFocus(false)
+    searchBox:SetScript("OnEscapePressed", function(self)
+        self:ClearFocus()
+    end)
+
     local function UpdateFilterVisuals()
         local function SetActive(btn, active)
             if active then
@@ -1133,12 +1063,12 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
 
     local rightDivider = right:CreateTexture(nil, "ARTWORK")
     rightDivider:SetColorTexture(THEME.borderLight[1], THEME.borderLight[2], THEME.borderLight[3], 0.6)
-    rightDivider:SetPoint("TOPLEFT", right, "TOPLEFT", 8, -58)
-    rightDivider:SetPoint("TOPRIGHT", right, "TOPRIGHT", -8, -58)
+    rightDivider:SetPoint("TOPLEFT", right, "TOPLEFT", 8, -84)
+    rightDivider:SetPoint("TOPRIGHT", right, "TOPRIGHT", -8, -84)
     rightDivider:SetHeight(1)
 
     local spScroll = CreateFrame("ScrollFrame", nil, right, "UIPanelScrollFrameTemplate")
-    spScroll:SetPoint("TOPLEFT", right, "TOPLEFT", 8, -64)
+    spScroll:SetPoint("TOPLEFT", right, "TOPLEFT", 8, -90)
     spScroll:SetPoint("BOTTOMRIGHT", right, "BOTTOMRIGHT", -28, 44)
 
     local spChild = CreateFrame("Frame", nil, spScroll)
@@ -1163,6 +1093,15 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
         end)
     end
 
+    right.listStatus = CreateLabel(spChild, "", 12, true)
+    right.listStatus:SetPoint("TOPLEFT", spChild, "TOPLEFT", 6, -6)
+    right.listStatus:SetJustifyH("LEFT")
+    right.listStatus:Hide()
+
+    right.refreshBtn = CreateButton(spChild, "Refresh", 80, 18, true)
+    right.refreshBtn:SetPoint("TOPLEFT", right.listStatus, "BOTTOMLEFT", 0, -6)
+    right.refreshBtn:Hide()
+
     local spellRows = {}
 
     -- Status line
@@ -1182,6 +1121,17 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
     end
 
     function right:RefreshPicker()
+        ClickCastDebug("RefreshList called")
+        if SpellProvider and SpellProvider.EnsureBuilt then
+            SpellProvider:EnsureBuilt()
+            ClickCast._spellCache = SpellProvider:GetCache()
+            ClickCast._spellCacheBuilt = SpellProvider:IsBuilt()
+        elseif (not ClickCast._spellCacheBuilt) or (not ClickCast._spellCache) or (not ClickCast._spellCache.all) then
+            if ClickCast.BuildSpellCache then
+                ClickCast:BuildSpellCache()
+            end
+        end
+
         -- Active filter visuals
         UpdateFilterVisuals()
 
@@ -1192,18 +1142,30 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
         end
         wipe(spellRows)
 
-        local list = ClickCast._spellCache and ClickCast._spellCache[state.filter] or nil
+        local allList = (SpellProvider and SpellProvider.GetAllSpells and SpellProvider:GetAllSpells())
+            or (ClickCast._spellCache and ClickCast._spellCache.all)
+            or {}
+        local allCount = #allList
+        ClickCastDebug("SpellIndex count = " .. tostring(allCount))
+
+        local list = SpellProvider and SpellProvider.GetCategory and SpellProvider:GetCategory(state.filter)
+            or (ClickCast._spellCache and ClickCast._spellCache[state.filter])
         if not list or #list == 0 then
-            list = ClickCast._spellCache and ClickCast._spellCache.all or {}
+            list = allList
         end
+
+        local query = (searchBox and searchBox.GetText and searchBox:GetText()) or ""
+        local filtered = (SpellProvider and SpellProvider.Filter and SpellProvider:Filter(list, query)) or list or {}
+        ClickCastDebug("query=\"" .. SafeTrim(query) .. "\" results=" .. tostring(#filtered))
 
         local currentSpell = GetCurrentSpellName()
         local y = -2
         local rowH = 24
         local totalH = 0
+        local rowsCreated = 0
 
-        for i = 1, #list do
-            local entry = list[i]
+        for i = 1, #filtered do
+            local entry = filtered[i]
             local row = CreateFrame("Button", nil, spChild, "BackdropTemplate")
             row:SetPoint("TOPLEFT", spChild, "TOPLEFT", 0, y)
             row:SetPoint("TOPRIGHT", spChild, "TOPRIGHT", 0, y)
@@ -1213,9 +1175,13 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
 
             row.icon = CreateIcon(row, 18)
             row.icon:SetPoint("LEFT", row, "LEFT", 6, 0)
-            row.icon:SetTexture(entry.icon)
+            row.icon:SetTexture((entry and entry.icon) or "Interface\\Icons\\INV_Misc_QuestionMark")
 
-            row.name = CreateLabel(row, entry.name, 12)
+            local nameText = (entry and entry.name) or (entry and entry.spellID and ("Spell " .. tostring(entry.spellID))) or ""
+            if entry and entry.isExternal then
+                nameText = nameText .. " (not in spellbook)"
+            end
+            row.name = CreateLabel(row, nameText, 12)
             row.name:SetPoint("LEFT", row.icon, "RIGHT", 8, 0)
             row.name:SetPoint("RIGHT", row, "RIGHT", -6, 0)
 
@@ -1248,11 +1214,48 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
             end)
 
             spellRows[i] = row
+            rowsCreated = rowsCreated + 1
             y = y - rowH - 2
             totalH = totalH + rowH + 2
         end
 
-        spChild:SetHeight(totalH + 2)
+        if allCount == 0 then
+            right._spellFinderEmptyAttempts = (right._spellFinderEmptyAttempts or 0) + 1
+        else
+            right._spellFinderEmptyAttempts = 0
+        end
+
+        if allCount == 0 then
+            local loading = right._spellFinderEmptyAttempts <= 1
+            right.listStatus:SetText(loading and "Loading spells..." or "No spells found yet. Try again in a moment.")
+            right.listStatus:Show()
+            right.refreshBtn:Show()
+        elseif #filtered == 0 then
+            right.listStatus:SetText("No results")
+            right.listStatus:Show()
+            right.refreshBtn:Hide()
+        else
+            right.listStatus:Hide()
+            right.refreshBtn:Hide()
+        end
+
+        local minRows = right.listStatus:IsShown() and 2 or 0
+        spChild:SetHeight(math.max(totalH + 2, (minRows * rowH) + 4))
+
+        if allCount == 0 and SpellProvider and SpellProvider.RefreshSoon and not right._spellFinderRetry then
+            right._spellFinderRetry = true
+            SpellProvider:RefreshSoon(function()
+                right._spellFinderRetry = nil
+                if ClickCast.BuildSpellCache then
+                    ClickCast:BuildSpellCache()
+                end
+                if right and right.RefreshPicker then
+                    right:RefreshPicker()
+                end
+            end)
+        end
+
+        ClickCastDebug("Rows created = " .. tostring(rowsCreated))
 
         if state.selected and state.selected.modifier and state.selected.button then
             local b = ClickCast:GetClickCastBinding(state.selected.button, state.selected.modifier)
@@ -1270,6 +1273,22 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
         end
     end
 
+    searchBox:SetScript("OnTextChanged", function()
+        if right and right.RefreshPicker then
+            right:RefreshPicker()
+        end
+    end)
+
+    right.refreshBtn:SetScript("OnClick", function()
+        ClickCast._spellCacheBuilt = false
+        if ClickCast.BuildSpellCache then
+            ClickCast:BuildSpellCache()
+        end
+        if right and right.RefreshPicker then
+            right:RefreshPicker()
+        end
+    end)
+
     -- Track the currently open ClickCast UI so we can refresh it on spec/spellbook updates.
     self._activeUI = {
         embed = embed,
@@ -1280,6 +1299,15 @@ function ClickCast:CreateClickCastUI(embed, defaultTab)
             end
         end,
     }
+    if embed and embed.HookScript and not embed._clickCastOnShowHooked then
+        embed:HookScript("OnShow", function()
+            ClickCastDebug("UI opened")
+            if ClickCast._activeUI and ClickCast._activeUI.refresh then
+                ClickCast._activeUI.refresh()
+            end
+        end)
+        embed._clickCastOnShowHooked = true
+    end
     embed:HookScript('OnHide', function()
         if ClickCast.HideCaptureOverlay then
             ClickCast:HideCaptureOverlay()

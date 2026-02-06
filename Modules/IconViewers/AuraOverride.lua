@@ -41,9 +41,9 @@ local function ApplyDesaturationForAuraActive(iconFrame, desaturate)
     
     -- Set the force value flag - hooks will enforce this
     if desaturate then
-        iconFrame.__nephuiForceDesatValue = 1
+        iconFrame.__lilyuiForceDesatValue = 1
     else
-        iconFrame.__nephuiForceDesatValue = nil
+        iconFrame.__lilyuiForceDesatValue = nil
     end
     
     -- Apply immediately
@@ -65,33 +65,33 @@ end
 -- Hook SetCooldown to enforce spell cooldown when ignoreAuraOverride is enabled
 local function HookCooldownFrame(iconFrame, viewerName)
     if not iconFrame or not iconFrame.Cooldown then return end
-    if iconFrame.__nephuiAuraOverrideHooked then return end
+    if iconFrame.__lilyuiAuraOverrideHooked then return end
     
-    iconFrame.__nephuiAuraOverrideHooked = true
-    iconFrame.__nephuiViewerName = viewerName
+    iconFrame.__lilyuiAuraOverrideHooked = true
+    iconFrame.__lilyuiViewerName = viewerName
     
     local cooldown = iconFrame.Cooldown
     local iconTexture = iconFrame.icon or iconFrame.Icon
     
     -- Hook SetDesaturated and SetDesaturation to enforce our force value
     -- This prevents CDM from constantly changing desaturation and causing flashing
-    if iconTexture and not iconTexture.__nephuiDesatHooked then
-        iconTexture.__nephuiDesatHooked = true
-        iconTexture.__nephuiParentFrame = iconFrame
+    if iconTexture and not iconTexture.__lilyuiDesatHooked then
+        iconTexture.__lilyuiDesatHooked = true
+        iconTexture.__lilyuiParentFrame = iconFrame
         
         -- Hook SetDesaturated (boolean version)
         if iconTexture.SetDesaturated then
             hooksecurefunc(iconTexture, "SetDesaturated", function(self, desaturated)
-                local pf = self.__nephuiParentFrame
+                local pf = self.__lilyuiParentFrame
                 if not pf then return end
-                if pf.__nephuiBypassDesatHook then return end
+                if pf.__lilyuiBypassDesatHook then return end
                 
                 -- If we have a forced desaturation value (for ignoreAuraOverride), enforce it
-                local forceValue = pf.__nephuiForceDesatValue
+                local forceValue = pf.__lilyuiForceDesatValue
                 if forceValue ~= nil and self.SetDesaturation then
-                    pf.__nephuiBypassDesatHook = true
+                    pf.__lilyuiBypassDesatHook = true
                     self:SetDesaturation(forceValue)
-                    pf.__nephuiBypassDesatHook = false
+                    pf.__lilyuiBypassDesatHook = false
                 end
             end)
         end
@@ -99,16 +99,16 @@ local function HookCooldownFrame(iconFrame, viewerName)
         -- Hook SetDesaturation (numeric version)
         if iconTexture.SetDesaturation then
             hooksecurefunc(iconTexture, "SetDesaturation", function(self, value)
-                local pf = self.__nephuiParentFrame
+                local pf = self.__lilyuiParentFrame
                 if not pf then return end
-                if pf.__nephuiBypassDesatHook then return end
+                if pf.__lilyuiBypassDesatHook then return end
                 
                 -- If we have a forced desaturation value (for ignoreAuraOverride), enforce it
-                local forceValue = pf.__nephuiForceDesatValue
+                local forceValue = pf.__lilyuiForceDesatValue
                 if forceValue ~= nil then
-                    pf.__nephuiBypassDesatHook = true
+                    pf.__lilyuiBypassDesatHook = true
                     self:SetDesaturation(forceValue)
-                    pf.__nephuiBypassDesatHook = false
+                    pf.__lilyuiBypassDesatHook = false
                 end
             end)
         end
@@ -117,10 +117,10 @@ local function HookCooldownFrame(iconFrame, viewerName)
     -- Hook SetCooldown using hooksecurefunc
     hooksecurefunc(cooldown, "SetCooldown", function(self, startTime, duration)
         local parentFrame = self:GetParent()
-        if not parentFrame or not parentFrame.__nephuiViewerName then return end
-        if parentFrame.__nephuiBypassCooldownHook then return end
+        if not parentFrame or not parentFrame.__lilyuiViewerName then return end
+        if parentFrame.__lilyuiBypassCooldownHook then return end
         
-        local viewerName = parentFrame.__nephuiViewerName
+        local viewerName = parentFrame.__lilyuiViewerName
         local ignoreAuraOverride = GetViewerSettings(viewerName)
         
         if ignoreAuraOverride and HasActiveAura(parentFrame) then
@@ -140,13 +140,13 @@ local function HookCooldownFrame(iconFrame, viewerName)
                     -- For charge spells, don't force desaturation - let CDM handle it based on charge availability
                     local ok, chargeDurObj = pcall(C_Spell.GetSpellChargeDuration, spellID)
                     if ok and chargeDurObj then
-                        parentFrame.__nephuiBypassCooldownHook = true
+                        parentFrame.__lilyuiBypassCooldownHook = true
                         pcall(function()
                             if self.SetCooldownFromDurationObject then
                                 self:SetCooldownFromDurationObject(chargeDurObj)
                             end
                         end)
-                        parentFrame.__nephuiBypassCooldownHook = false
+                        parentFrame.__lilyuiBypassCooldownHook = false
                         -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
                         if self.SetSwipeColor then
                             self:SetSwipeColor(0, 0, 0, 0.8)
@@ -158,15 +158,15 @@ local function HookCooldownFrame(iconFrame, viewerName)
                     local ok, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
                     if ok and cooldownInfo and cooldownInfo.duration and cooldownInfo.startTime then
                         -- Use spell cooldown instead of aura duration
-                        parentFrame.__nephuiBypassCooldownHook = true
+                        parentFrame.__lilyuiBypassCooldownHook = true
                         self:SetCooldown(cooldownInfo.startTime, cooldownInfo.duration)
                         -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
                         if self.SetSwipeColor then
                             self:SetSwipeColor(0, 0, 0, 0.8)
                         end
-                        parentFrame.__nephuiBypassCooldownHook = false
+                        parentFrame.__lilyuiBypassCooldownHook = false
                         -- Set force desaturation value - hooks will enforce it
-                        parentFrame.__nephuiForceDesatValue = 1
+                        parentFrame.__lilyuiForceDesatValue = 1
                         -- Apply desaturation since aura is active
                         ApplyDesaturationForAuraActive(parentFrame, true)
                     end
@@ -174,7 +174,7 @@ local function HookCooldownFrame(iconFrame, viewerName)
             end
         elseif ignoreAuraOverride then
             -- Clear force desaturation when aura is not active
-            parentFrame.__nephuiForceDesatValue = nil
+            parentFrame.__lilyuiForceDesatValue = nil
             -- Update desaturation when aura is not active
             ApplyDesaturationForAuraActive(parentFrame, false)
         end
@@ -184,10 +184,10 @@ local function HookCooldownFrame(iconFrame, viewerName)
     if cooldown.SetCooldownFromDurationObject then
         hooksecurefunc(cooldown, "SetCooldownFromDurationObject", function(self, durationObj, clearIfZero)
             local parentFrame = self:GetParent()
-            if not parentFrame or not parentFrame.__nephuiViewerName then return end
-            if parentFrame.__nephuiBypassCooldownHook then return end
+            if not parentFrame or not parentFrame.__lilyuiViewerName then return end
+            if parentFrame.__lilyuiBypassCooldownHook then return end
             
-            local viewerName = parentFrame.__nephuiViewerName
+            local viewerName = parentFrame.__lilyuiViewerName
             local ignoreAuraOverride = GetViewerSettings(viewerName)
             
             if ignoreAuraOverride and HasActiveAura(parentFrame) then
@@ -207,11 +207,11 @@ local function HookCooldownFrame(iconFrame, viewerName)
                         -- For charge spells, don't force desaturation - let CDM handle it based on charge availability
                         local ok, chargeDurObj = pcall(C_Spell.GetSpellChargeDuration, spellID)
                         if ok and chargeDurObj then
-                            parentFrame.__nephuiBypassCooldownHook = true
+                            parentFrame.__lilyuiBypassCooldownHook = true
                             pcall(function()
                                 self:SetCooldownFromDurationObject(chargeDurObj)
                             end)
-                            parentFrame.__nephuiBypassCooldownHook = false
+                            parentFrame.__lilyuiBypassCooldownHook = false
                             -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
                             if self.SetSwipeColor then
                                 self:SetSwipeColor(0, 0, 0, 0.8)
@@ -223,15 +223,15 @@ local function HookCooldownFrame(iconFrame, viewerName)
                         local ok, cooldownInfo = pcall(C_Spell.GetSpellCooldown, spellID)
                         if ok and cooldownInfo and cooldownInfo.duration and cooldownInfo.startTime then
                             -- Use spell cooldown instead of aura duration
-                            parentFrame.__nephuiBypassCooldownHook = true
+                            parentFrame.__lilyuiBypassCooldownHook = true
                             self:SetCooldown(cooldownInfo.startTime, cooldownInfo.duration)
                             -- Set swipe color to black (like regular cooldown) instead of yellow (aura swipe)
                             if self.SetSwipeColor then
                                 self:SetSwipeColor(0, 0, 0, 0.8)
                             end
-                            parentFrame.__nephuiBypassCooldownHook = false
+                            parentFrame.__lilyuiBypassCooldownHook = false
                             -- Set force desaturation value - hooks will enforce it
-                            parentFrame.__nephuiForceDesatValue = 1
+                            parentFrame.__lilyuiForceDesatValue = 1
                             -- Apply desaturation since aura is active
                             ApplyDesaturationForAuraActive(parentFrame, true)
                         end
@@ -239,7 +239,7 @@ local function HookCooldownFrame(iconFrame, viewerName)
                 end
             elseif ignoreAuraOverride then
                 -- Clear force desaturation when aura is not active
-                parentFrame.__nephuiForceDesatValue = nil
+                parentFrame.__lilyuiForceDesatValue = nil
                 -- Update desaturation when aura is not active
                 ApplyDesaturationForAuraActive(parentFrame, false)
             end
@@ -307,7 +307,7 @@ function AuraOverride:RefreshViewer(viewer)
                                 icon.Cooldown:SetSwipeColor(0, 0, 0, 0.8)
                             end
                             -- Set force desaturation value - hooks will enforce it
-                            icon.__nephuiForceDesatValue = 1
+                            icon.__lilyuiForceDesatValue = 1
                             ApplyDesaturationForAuraActive(icon, true)
                         end
                     end
@@ -356,8 +356,8 @@ function AuraOverride:Initialize()
         local viewer = _G[viewerName]
         if viewer then
             -- Hook the viewer's OnShow to refresh icons
-            if not viewer.__nephuiAuraOverrideHooked then
-                viewer.__nephuiAuraOverrideHooked = true
+            if not viewer.__lilyuiAuraOverrideHooked then
+                viewer.__lilyuiAuraOverrideHooked = true
                 viewer:HookScript("OnShow", function()
                     C_Timer.After(0.1, function()
                         AuraOverride:RefreshViewer(viewer)

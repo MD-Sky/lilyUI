@@ -252,7 +252,7 @@ function IconViewers:AutoLoadBuffIcons(retryCount)
         return
     end
     
-    viewer.__nephuiInitialLoading = true
+    viewer.__lilyuiInitialLoading = true
     
     -- Open CooldownViewerSettings frame instead of showing BuffIconCooldownViewer
     local settingsFrame = _G["BuffIconCooldownViewer"]
@@ -260,8 +260,8 @@ function IconViewers:AutoLoadBuffIcons(retryCount)
         settingsFrame:Show()
         settingsFrame:Raise()
 
-        if not settingsFrame.__nephuiLayoutHook then
-            settingsFrame.__nephuiLayoutHook = true
+        if not settingsFrame.__lilyuiLayoutHook then
+            settingsFrame.__lilyuiLayoutHook = true
             settingsFrame:HookScript("OnHide", function()
                 local buffViewer = _G["BuffIconCooldownViewer"]
                 if buffViewer and buffViewer:IsShown() and IconViewers.ApplyViewerLayout then
@@ -278,7 +278,7 @@ function IconViewers:AutoLoadBuffIcons(retryCount)
     
     local settings = LilyUI.db.profile.viewers["BuffIconCooldownViewer"]
     if not settings or not settings.enabled then
-        viewer.__nephuiInitialLoading = nil
+        viewer.__lilyuiInitialLoading = nil
         return
     end
     
@@ -347,7 +347,7 @@ function IconViewers:AutoLoadBuffIcons(retryCount)
     end
     
     if not shouldRetry then
-        viewer.__nephuiInitialLoading = nil
+        viewer.__lilyuiInitialLoading = nil
         
         -- Hide CooldownViewerSettings frame after a couple seconds
         C_Timer.After(2.0, function()

@@ -211,8 +211,8 @@ local function MakePlayerFrameClickthrough()
     SafeDisableMouse(PlayerFrame)
     
     -- Hook OnShow to keep it clickthrough and invisible
-    if not PlayerFrame.__nephuiClickthroughHooked then
-        PlayerFrame.__nephuiClickthroughHooked = true
+    if not PlayerFrame.__lilyuiClickthroughHooked then
+        PlayerFrame.__lilyuiClickthroughHooked = true
         PlayerFrame:HookScript("OnShow", function(self)
             local db = LilyUI.db.profile.unitFrames
             if db and db.enabled then
@@ -225,8 +225,8 @@ local function MakePlayerFrameClickthrough()
     local runeFrame = _G["RuneFrame"]
     if runeFrame then
         SafeDisableMouse(runeFrame)
-        if not runeFrame.__nephuiClickthroughHooked then
-            runeFrame.__nephuiClickthroughHooked = true
+        if not runeFrame.__lilyuiClickthroughHooked then
+            runeFrame.__lilyuiClickthroughHooked = true
             runeFrame:HookScript("OnShow", function(self)
                 local db = LilyUI.db.profile.unitFrames
                 if db and db.enabled then

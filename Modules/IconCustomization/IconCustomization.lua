@@ -201,14 +201,14 @@ local function ShowReadyGlow(frame, spellID)
     StopAllGlows(frame, "LilyUI_ReadyGlow")
     
     if not spellID then
-        frame._nephuiReadyGlowActive = false
+        frame._lilyuiReadyGlowActive = false
         return
     end
     
     -- Get customization settings
     local custom = GetSpellCustomization(spellID)
     if not custom or custom.readyGlow ~= true then
-        frame._nephuiReadyGlowActive = false
+        frame._lilyuiReadyGlowActive = false
         return
     end
     
@@ -239,7 +239,7 @@ local function ShowReadyGlow(frame, spellID)
         pcall(LCG.ButtonGlow_Start, frame, color, glowSpeed)
     end
     
-    frame._nephuiReadyGlowActive = true
+    frame._lilyuiReadyGlowActive = true
 end
 
 -- Hide ready glow
@@ -255,7 +255,7 @@ local function HideReadyGlow(frame)
         frame._ButtonGlow:Hide()
     end
     
-    frame._nephuiReadyGlowActive = false
+    frame._lilyuiReadyGlowActive = false
 end
 
 -- Check if spell is on cooldown (ignores GCD) - SECRET-SAFE for combat
@@ -297,23 +297,23 @@ local function UpdateReadyGlow(iconFrame)
     if not iconFrame then return end
     
     -- Use cached spellID if available
-    local spellID = iconFrame._nephuiCachedSpellID
+    local spellID = iconFrame._lilyuiCachedSpellID
     if not spellID then
         spellID = GetSpellIDFromIcon(iconFrame)
         if spellID then
-            iconFrame._nephuiCachedSpellID = spellID
+            iconFrame._lilyuiCachedSpellID = spellID
         end
     end
     
     if not spellID then
-        if iconFrame._nephuiReadyGlowActive then
+        if iconFrame._lilyuiReadyGlowActive then
             HideReadyGlow(iconFrame)
         end
         return
     end
     
     if not ShouldShowReadyGlow(spellID) then
-        if iconFrame._nephuiReadyGlowActive then
+        if iconFrame._lilyuiReadyGlowActive then
             HideReadyGlow(iconFrame)
         end
         return
@@ -324,11 +324,11 @@ local function UpdateReadyGlow(iconFrame)
     
     -- Only update if state actually changed (prevent flashing)
     if onCooldown then
-        if iconFrame._nephuiReadyGlowActive then
+        if iconFrame._lilyuiReadyGlowActive then
             HideReadyGlow(iconFrame)
         end
     else
-        if not iconFrame._nephuiReadyGlowActive then
+        if not iconFrame._lilyuiReadyGlowActive then
             ShowReadyGlow(iconFrame, spellID)
         end
     end
@@ -337,9 +337,9 @@ end
 -- Hook cooldown frame
 local function HookCooldownFrame(iconFrame)
     if not iconFrame or not iconFrame.Cooldown then return end
-    if iconFrame.__nephuiReadyGlowHooked then return end
+    if iconFrame.__lilyuiReadyGlowHooked then return end
     
-    iconFrame.__nephuiReadyGlowHooked = true
+    iconFrame.__lilyuiReadyGlowHooked = true
     
     -- Cache spellID on frame for event-driven updates
     if not InCombatLockdown() then
@@ -347,16 +347,16 @@ local function HookCooldownFrame(iconFrame)
         if cooldownInfo then
             local spellID = cooldownInfo.overrideSpellID or cooldownInfo.spellID
             if spellID then
-                iconFrame._nephuiCachedSpellID = spellID
+                iconFrame._lilyuiCachedSpellID = spellID
             end
         end
     end
     
     -- If we couldn't cache from cooldownInfo, try GetSpellIDFromIcon
-    if not iconFrame._nephuiCachedSpellID then
+    if not iconFrame._lilyuiCachedSpellID then
         local spellID = GetSpellIDFromIcon(iconFrame)
         if spellID then
-            iconFrame._nephuiCachedSpellID = spellID
+            iconFrame._lilyuiCachedSpellID = spellID
         end
     end
     
@@ -373,12 +373,12 @@ local function RefreshAllReadyGlows()
     for frame, _ in pairs(hookedFrames) do
         if frame and not frame:IsForbidden() then
             -- Use cached spellID
-            local spellID = frame._nephuiCachedSpellID
+            local spellID = frame._lilyuiCachedSpellID
             if not spellID then
                 -- Fallback if cache missing
                 spellID = GetSpellIDFromIcon(frame)
                 if spellID then
-                    frame._nephuiCachedSpellID = spellID
+                    frame._lilyuiCachedSpellID = spellID
                 end
             end
             

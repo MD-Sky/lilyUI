@@ -134,7 +134,18 @@ local function StyleEditBox(editBox, fontObjectName)
     editBox:SetShadowColor(0, 0, 0, 1)
 end
 
+local function GUIDebug(fmt, ...)
+    if not (LilyUI and type(LilyUI.DebugWindowLog) == "function") then
+        return
+    end
+    local ok = pcall(LilyUI.DebugWindowLog, LilyUI, "System", fmt, ...)
+    if not ok then
+        -- Swallow any logging errors to avoid breaking the UI.
+    end
+end
+
 local function BuildLandingPageUI(parent, configFrame)
+    GUIDebug("[GUI] Landing page opened")
     if not parent then return end
 
     -- Header
@@ -492,12 +503,12 @@ local Widgets = {}
 if not Widgets._dropdownScaleHooked then
     Widgets._dropdownScaleHooked = true
     hooksecurefunc("ToggleDropDownMenu", function(level, value, dropDownFrame, anchorName, xOffset, yOffset, menuList, button, autoHideDelay)
-        if dropDownFrame and dropDownFrame._nephUIDropdownScale then
+        if dropDownFrame and dropDownFrame._lilyUIDropdownScale then
             C_Timer.After(0.01, function()
                 for i = 1, (UIDROPDOWNMENU_MAXLEVELS or 2) do
                     local listFrame = _G["DropDownList" .. i]
                     if listFrame and listFrame:IsShown() and listFrame.dropdown == dropDownFrame then
-                        listFrame:SetScale(dropDownFrame._nephUIDropdownScale)
+                        listFrame:SetScale(dropDownFrame._lilyUIDropdownScale)
                         break
                     end
                 end
@@ -1559,6 +1570,7 @@ local function RenderOptions(contentFrame, options, path, parentFrame)
                 end
                 btn:SetActive(true)
 
+                GUIDebug("[GUI] Subtab selected: %s", tostring(displayName))
                 RenderOptions(subScrollChild, item.option, path, parentFrame)
                 
                 -- Update content frame height after rendering sub-tab content
@@ -1578,6 +1590,7 @@ local function RenderOptions(contentFrame, options, path, parentFrame)
         
         if #subTabButtons > 0 then
             subTabButtons[1]:SetActive(true)
+            GUIDebug("[GUI] Subtab selected: %s", tostring(sortedTabs[1].option and sortedTabs[1].option.name or sortedTabs[1].key))
             RenderOptions(subScrollChild, sortedTabs[1].option, path, parentFrame)
             
             -- Update content frame height after initial render
@@ -1708,6 +1721,23 @@ elseif option.type == "landingPage" then
                 if LilyUI and LilyUI.PartyFrames and LilyUI.PartyFrames.ClickCast and LilyUI.PartyFrames.ClickCast.CreateClickCastUI then
                     local defaultTab = option.defaultTab or "spells"
                     LilyUI.PartyFrames.ClickCast:CreateClickCastUI(embed, defaultTab)
+                end
+
+                widget = embed
+                widgetHeight = embed:GetHeight() or 600
+            elseif option.type == "auraListsPage" then
+                local embed = CreateFrame("Frame", nil, contentFrame, "BackdropTemplate")
+                embed:SetPoint("TOPLEFT", contentFrame, "TOPLEFT", 0, -yOffset)
+                embed:SetPoint("RIGHT", contentFrame, "RIGHT", 0, 0)
+                embed:SetWidth(contentFrame:GetWidth() or 600)
+                embed:SetHeight(600)
+
+                if LilyUI and LilyUI.PartyFrames and LilyUI.PartyFrames.CreateAuraListsUI then
+                    if LilyUI and LilyUI.DebugWindowLog then
+                        LilyUI:DebugWindowLog("System", "[GUI] [WL/BL] Subtab selected")
+                    end
+                    local mode = option.mode or "party"
+                    LilyUI.PartyFrames:CreateAuraListsUI(embed, mode)
                 end
 
                 widget = embed
@@ -2469,6 +2499,7 @@ function LilyUI:OpenConfigGUI(options, tabKey)
                 btn:SetActive(true)
 
                 -- Set content
+                GUIDebug("[GUI] Main tab selected: %s", tostring(tabName))
                 frame:SetContent(item.option, {item.key})
                 frame.currentTab = item.key
                 frame.currentPath = {item.key}
@@ -2502,6 +2533,11 @@ function LilyUI:OpenConfigGUI(options, tabKey)
             
             if targetTab and tabButtons[targetTabIndex] then
                 tabButtons[targetTabIndex]:SetActive(true)
+                local tabName = targetTab.option and targetTab.option.name or targetTab.key
+                if type(tabName) == "function" then
+                    tabName = tabName()
+                end
+                GUIDebug("[GUI] Main tab selected: %s", tostring(tabName))
                 frame:SetContent(targetTab.option, {targetTab.key})
                 frame.currentTab = targetTab.key
                 frame.currentPath = {targetTab.key}

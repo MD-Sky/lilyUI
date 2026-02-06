@@ -8,8 +8,6 @@ local CastBarOptions = ns.CreateCastBarOptions
 local CustomIconOptions = ns.CreateCustomIconOptions
 local IconCustomizationOptions = ns.CreateIconCustomizationOptions
 local UnitFrameOptions = ns.CreateUnitFrameOptionsGroup
-local PartyFrameOptions = ns.CreatePartyFrameOptions
-local RaidFrameOptions = ns.CreateRaidFrameOptions
 local ClickCastOptions = ns.CreateClickCastOptions
 local ProfileOptions = ns.CreateProfileOptions
 local ChatOptions = ns.CreateChatOptions
@@ -1282,8 +1280,8 @@ uiBackdropStyle = {
             buffDebuffFrames = BuffDebuffFramesOptions(),
 
             -- PARTY & RAID FRAME TABS
-            partyFrames = PartyFrameOptions(),
-            raidFrames = RaidFrameOptions(),
+            partyFrames = ns.CreatePartyFrameOptions(),
+            raidFrames = ns.CreateRaidFrameOptions(),
             clickCast = ClickCastOptions(),
 
             -- Cooldown Manager TAB
@@ -1840,14 +1838,14 @@ uiBackdropStyle = {
                         profileBuffers = profileBuffers,
                         nephDB = nephDB, -- Store reference to our database
                     }
-                    StaticPopup_Show("NEPHUI_DELETE_PROFILE", profileBuffers.delete, nil, dialogData)
+                    StaticPopup_Show("LILYUI_DELETE_PROFILE", profileBuffers.delete, nil, dialogData)
                 end,
             }
         end
         
         -- Register the delete confirmation popup
-        if not StaticPopupDialogs["NEPHUI_DELETE_PROFILE"] then
-            StaticPopupDialogs["NEPHUI_DELETE_PROFILE"] = {
+        if not StaticPopupDialogs["LILYUI_DELETE_PROFILE"] then
+            StaticPopupDialogs["LILYUI_DELETE_PROFILE"] = {
                 text = "Are you sure you want to delete the profile '%s'? This cannot be undone!",
                 button1 = "Delete",
                 button2 = "Cancel",

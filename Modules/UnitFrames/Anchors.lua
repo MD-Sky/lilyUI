@@ -13,22 +13,22 @@ local SafeDisableMouse = UF.SafeDisableMouse
 local MakePlayerFrameClickthrough = UF.MakePlayerFrameClickthrough
 
 local function BeginRepositionGuard()
-    if UF.__nephuiRepositioning then
+    if UF.__lilyuiRepositioning then
         return false
     end
 
-    UF.__nephuiRepositioning = true
+    UF.__lilyuiRepositioning = true
     return true
 end
 
 local function EndRepositionGuard()
-    UF.__nephuiRepositioning = nil
+    UF.__lilyuiRepositioning = nil
 end
 
 local function HideEditModeSelectionFrame(selectionFrame)
-    if not selectionFrame or selectionFrame.__nephuiSelectionHidden then return end
+    if not selectionFrame or selectionFrame.__lilyuiSelectionHidden then return end
     
-    selectionFrame.__nephuiSelectionHidden = true
+    selectionFrame.__lilyuiSelectionHidden = true
     selectionFrame:Hide()
     
     selectionFrame:HookScript("OnShow", function(self)
@@ -214,10 +214,10 @@ function UF:HookCooldownViewer()
     end
     
     -- If already hooked, return
-    if ecv.__nephuiCooldownHooked then
+    if ecv.__lilyuiCooldownHooked then
         return
     end
-    ecv.__nephuiCooldownHooked = true
+    ecv.__lilyuiCooldownHooked = true
     
     local function realign()
         if not BeginRepositionGuard() then
@@ -337,8 +337,8 @@ function UF:HookAnchorFrames()
     
     for _, anchorName in ipairs(anchorFrames) do
         local anchor = _G[anchorName]
-        if anchor and not anchor.__nephuiAnchorHooked then
-            anchor.__nephuiAnchorHooked = true
+        if anchor and not anchor.__lilyuiAnchorHooked then
+            anchor.__lilyuiAnchorHooked = true
             anchor:HookScript("OnSizeChanged", RepositionAllFrames)
             anchor:HookScript("OnShow", RepositionAllFrames)
             anchor:HookScript("OnHide", RepositionAllFrames)

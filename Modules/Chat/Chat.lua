@@ -39,7 +39,7 @@ local function StyleEditBox(editBox)
 end
 
 local function CreateBorder(frame)
-    if frame.__nephuiBorder then return frame.__nephuiBorder end
+    if frame.__lilyuiBorder then return frame.__lilyuiBorder end
     
     local border = CreateFrame("Frame", nil, frame, "BackdropTemplate")
     local borderOffset = LilyUI:Scale(1)
@@ -52,7 +52,7 @@ local function CreateBorder(frame)
     border:SetBackdropBorderColor(0, 0, 0, 1)
     border:SetFrameLevel(frame:GetFrameLevel() + 1)
     
-    frame.__nephuiBorder = border
+    frame.__lilyuiBorder = border
     return border
 end
 
@@ -72,7 +72,7 @@ local function SetBackgroundColor(frame)
     end
     
     if frame.SetBackdrop then
-        if not frame.__nephuiBackdropSet then
+        if not frame.__lilyuiBackdropSet then
             frame:SetBackdrop({
                 bgFile = "Interface\\Buttons\\WHITE8x8",
                 edgeFile = nil,
@@ -80,19 +80,19 @@ local function SetBackgroundColor(frame)
                 tileSize = 0,
                 insets = { left = 0, right = 0, top = 0, bottom = 0 }
             })
-            frame.__nephuiBackdropSet = true
+            frame.__lilyuiBackdropSet = true
         end
         frame:SetBackdropColor(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
     elseif frame.CreateTexture then
-        if not frame.__nephuiBackground then
+        if not frame.__lilyuiBackground then
             local bg = frame:CreateTexture(nil, "BACKGROUND")
             if bg then
                 bg:SetAllPoints()
                 bg:SetColorTexture(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
-                frame.__nephuiBackground = bg
+                frame.__lilyuiBackground = bg
             end
         else
-            frame.__nephuiBackground:SetColorTexture(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
+            frame.__lilyuiBackground:SetColorTexture(bgColor[1], bgColor[2], bgColor[3], bgColor[4] or 1)
         end
     end
 end
@@ -102,9 +102,9 @@ local function StyleAllFontStrings(frame)
     
     if frame.GetFontString then
         local fs = frame:GetFontString()
-        if fs and not fs.__nephuiStyled then
+        if fs and not fs.__lilyuiStyled then
             StyleFontString(fs)
-            fs.__nephuiStyled = true
+            fs.__lilyuiStyled = true
         end
     end
     
@@ -112,9 +112,9 @@ local function StyleAllFontStrings(frame)
         local regions = { frame:GetRegions() }
         for _, region in ipairs(regions) do
             if region and region.GetObjectType and region:GetObjectType() == "FontString" then
-                if not region.__nephuiStyled then
+                if not region.__lilyuiStyled then
                     StyleFontString(region)
-                    region.__nephuiStyled = true
+                    region.__lilyuiStyled = true
                 end
             end
         end
@@ -134,7 +134,7 @@ local function CleanEditBoxTextures(editBox)
         if region and region.GetObjectType then
             local objType = region:GetObjectType()
             if objType == "Texture" then
-                if region ~= editBox.__nephuiBackground and region ~= editBox.__nephuiBorder then
+                if region ~= editBox.__lilyuiBackground and region ~= editBox.__lilyuiBorder then
                     region:Hide()
                 end
             end
@@ -166,7 +166,7 @@ end
 
 -- Function to skin a single chat frame
 function Chat:SkinChatFrame(chatFrame)
-    if not chatFrame or chatFrame:IsForbidden() or chatFrame.__nephuiSkinned then
+    if not chatFrame or chatFrame:IsForbidden() or chatFrame.__lilyuiSkinned then
         return
     end
     
@@ -176,7 +176,7 @@ function Chat:SkinChatFrame(chatFrame)
     end
     
     -- Mark as skinned
-    chatFrame.__nephuiSkinned = true
+    chatFrame.__lilyuiSkinned = true
     
     -- Disable clamping to allow movement to screen edges in edit mode
     if chatFrame.SetClampedToScreen then
@@ -194,8 +194,8 @@ function Chat:SkinChatFrame(chatFrame)
         -- Set default background alpha to 0 (transparent)
         background:SetAlpha(0)
         -- Hook OnShow to maintain alpha at 0
-        if not background.__nephuiAlphaHooked then
-            background.__nephuiAlphaHooked = true
+        if not background.__lilyuiAlphaHooked then
+            background.__lilyuiAlphaHooked = true
             if background.HookScript then
                 background:HookScript("OnShow", function(self)
                     self:SetAlpha(0)
@@ -336,15 +336,15 @@ function Chat:SkinChatFrame(chatFrame)
         end
         
         -- Override SetWidth to prevent Blizzard from changing it
-        if not editBox.__nephuiSetWidthHooked then
-            editBox.__nephuiSetWidthHooked = true
+        if not editBox.__lilyuiSetWidthHooked then
+            editBox.__lilyuiSetWidthHooked = true
             local originalSetWidth = editBox.SetWidth
             editBox.SetWidth = function(self, width)
                 -- Allow our function to set width, but prevent Blizzard from overriding
-                if not self.__nephuiSettingWidth then
-                    self.__nephuiSettingWidth = true
+                if not self.__lilyuiSettingWidth then
+                    self.__lilyuiSettingWidth = true
                     originalSetWidth(self, width)
-                    self.__nephuiSettingWidth = nil
+                    self.__lilyuiSettingWidth = nil
                 end
             end
         end
@@ -353,8 +353,8 @@ function Chat:SkinChatFrame(chatFrame)
         MatchEditBoxWidthToChatFrame()
         
         -- Hook size changes to maintain width matching
-        if not chatFrame.__nephuiEditBoxWidthHooked then
-            chatFrame.__nephuiEditBoxWidthHooked = true
+        if not chatFrame.__lilyuiEditBoxWidthHooked then
+            chatFrame.__lilyuiEditBoxWidthHooked = true
             
             -- Hook chat frame size changes (our custom background matches this frame)
             if chatFrame.HookScript then
@@ -384,8 +384,8 @@ function Chat:SkinChatFrame(chatFrame)
         end
         
         -- Hook alpha changes to keep it at 1.0
-        if not editBox.__nephuiAlphaHooked then
-            editBox.__nephuiAlphaHooked = true
+        if not editBox.__lilyuiAlphaHooked then
+            editBox.__lilyuiAlphaHooked = true
             
             -- Override SetAlpha to always be 1.0
             local originalSetAlpha = editBox.SetAlpha
@@ -397,8 +397,8 @@ function Chat:SkinChatFrame(chatFrame)
 
         -- Keep only the primary chat edit box visible to avoid duplicates
         local primaryEditBox = _G.ChatFrameEditBox or _G.ChatFrame1EditBox
-        if editBox == primaryEditBox and not editBox.__nephuiShowHooked then
-            editBox.__nephuiShowHooked = true
+        if editBox == primaryEditBox and not editBox.__lilyuiShowHooked then
+            editBox.__lilyuiShowHooked = true
             editBox:Show()
 
             if editBox.HookScript then
@@ -414,16 +414,16 @@ function Chat:SkinChatFrame(chatFrame)
             end
         end
 
-        if editBox == primaryEditBox and not editBox.__nephuiContentHooked then
-            editBox.__nephuiContentHooked = true
+        if editBox == primaryEditBox and not editBox.__lilyuiContentHooked then
+            editBox.__lilyuiContentHooked = true
 
             local function SetEditBoxContentVisible(self, visible)
-                if not self.__nephuiTextColor then
+                if not self.__lilyuiTextColor then
                     local r, g, b, a = self:GetTextColor()
-                    self.__nephuiTextColor = { r or 1, g or 1, b or 1, a or 1 }
+                    self.__lilyuiTextColor = { r or 1, g or 1, b or 1, a or 1 }
                 end
 
-                local r, g, b, a = unpack(self.__nephuiTextColor)
+                local r, g, b, a = unpack(self.__lilyuiTextColor)
                 self:SetTextColor(r, g, b, visible and a or 0)
 
                 local promptFrames = {
@@ -526,8 +526,8 @@ function Chat:SkinChatFrame(chatFrame)
         if selection.Center then
             selection.Center:SetAlpha(0.3)
             -- Hook OnShow to maintain alpha
-            if not selection.Center.__nephuiAlphaHooked then
-                selection.Center.__nephuiAlphaHooked = true
+            if not selection.Center.__lilyuiAlphaHooked then
+                selection.Center.__lilyuiAlphaHooked = true
                 if selection.Center.HookScript then
                     selection.Center:HookScript("OnShow", function(self)
                         self:SetAlpha(0.3)
@@ -540,8 +540,8 @@ function Chat:SkinChatFrame(chatFrame)
         if selection.MouseOverHighlight then
             selection.MouseOverHighlight:SetAlpha(0.3)
             -- Hook OnShow to maintain alpha
-            if not selection.MouseOverHighlight.__nephuiAlphaHooked then
-                selection.MouseOverHighlight.__nephuiAlphaHooked = true
+            if not selection.MouseOverHighlight.__lilyuiAlphaHooked then
+                selection.MouseOverHighlight.__lilyuiAlphaHooked = true
                 if selection.MouseOverHighlight.HookScript then
                     selection.MouseOverHighlight:HookScript("OnShow", function(self)
                         self:SetAlpha(0.3)
@@ -696,8 +696,8 @@ function Chat:SetChatSelectionAlpha()
             if selection then
                 if selection.Center then
                     selection.Center:SetAlpha(0.3)
-                    if not selection.Center.__nephuiAlphaHooked then
-                        selection.Center.__nephuiAlphaHooked = true
+                    if not selection.Center.__lilyuiAlphaHooked then
+                        selection.Center.__lilyuiAlphaHooked = true
                         if selection.Center.HookScript then
                             selection.Center:HookScript("OnShow", function(self)
                                 self:SetAlpha(0.3)
@@ -707,8 +707,8 @@ function Chat:SetChatSelectionAlpha()
                 end
                 if selection.MouseOverHighlight then
                     selection.MouseOverHighlight:SetAlpha(0.3)
-                    if not selection.MouseOverHighlight.__nephuiAlphaHooked then
-                        selection.MouseOverHighlight.__nephuiAlphaHooked = true
+                    if not selection.MouseOverHighlight.__lilyuiAlphaHooked then
+                        selection.MouseOverHighlight.__lilyuiAlphaHooked = true
                         if selection.MouseOverHighlight.HookScript then
                             selection.MouseOverHighlight:HookScript("OnShow", function(self)
                                 self:SetAlpha(0.3)
@@ -726,8 +726,8 @@ function Chat:SetChatSelectionAlpha()
         if selection then
             if selection.Center then
                 selection.Center:SetAlpha(0.3)
-                if not selection.Center.__nephuiAlphaHooked then
-                    selection.Center.__nephuiAlphaHooked = true
+                if not selection.Center.__lilyuiAlphaHooked then
+                    selection.Center.__lilyuiAlphaHooked = true
                     if selection.Center.HookScript then
                         selection.Center:HookScript("OnShow", function(self)
                             self:SetAlpha(0.3)
@@ -737,8 +737,8 @@ function Chat:SetChatSelectionAlpha()
             end
             if selection.MouseOverHighlight then
                 selection.MouseOverHighlight:SetAlpha(0.3)
-                if not selection.MouseOverHighlight.__nephuiAlphaHooked then
-                    selection.MouseOverHighlight.__nephuiAlphaHooked = true
+                if not selection.MouseOverHighlight.__lilyuiAlphaHooked then
+                    selection.MouseOverHighlight.__lilyuiAlphaHooked = true
                     if selection.MouseOverHighlight.HookScript then
                         selection.MouseOverHighlight:HookScript("OnShow", function(self)
                             self:SetAlpha(0.3)
@@ -758,8 +758,8 @@ function Chat:DisableChatFrameClamping()
         local chatFrame = _G["ChatFrame" .. i]
         if chatFrame then
             -- Disable clamping on main chat frame
-            if chatFrame.SetClampedToScreen and not chatFrame.__nephuiClampingDisabled then
-                chatFrame.__nephuiClampingDisabled = true
+            if chatFrame.SetClampedToScreen and not chatFrame.__lilyuiClampingDisabled then
+                chatFrame.__lilyuiClampingDisabled = true
                 chatFrame:SetClampedToScreen(false)
                 
                 -- Hook OnShow to maintain unclamped state
@@ -774,8 +774,8 @@ function Chat:DisableChatFrameClamping()
             
             -- Also disable clamping on Background frame (often what's moved in edit mode)
             local background = chatFrame.Background
-            if background and background.SetClampedToScreen and not background.__nephuiClampingDisabled then
-                background.__nephuiClampingDisabled = true
+            if background and background.SetClampedToScreen and not background.__lilyuiClampingDisabled then
+                background.__lilyuiClampingDisabled = true
                 background:SetClampedToScreen(false)
                 
                 if background.HookScript then
@@ -791,8 +791,8 @@ function Chat:DisableChatFrameClamping()
     
     -- Also handle DEFAULT_CHAT_FRAME
     if DEFAULT_CHAT_FRAME then
-        if DEFAULT_CHAT_FRAME.SetClampedToScreen and not DEFAULT_CHAT_FRAME.__nephuiClampingDisabled then
-            DEFAULT_CHAT_FRAME.__nephuiClampingDisabled = true
+        if DEFAULT_CHAT_FRAME.SetClampedToScreen and not DEFAULT_CHAT_FRAME.__lilyuiClampingDisabled then
+            DEFAULT_CHAT_FRAME.__lilyuiClampingDisabled = true
             DEFAULT_CHAT_FRAME:SetClampedToScreen(false)
             if DEFAULT_CHAT_FRAME.HookScript then
                 DEFAULT_CHAT_FRAME:HookScript("OnShow", function(self)
@@ -804,8 +804,8 @@ function Chat:DisableChatFrameClamping()
         end
         
         local defaultBackground = DEFAULT_CHAT_FRAME.Background
-        if defaultBackground and defaultBackground.SetClampedToScreen and not defaultBackground.__nephuiClampingDisabled then
-            defaultBackground.__nephuiClampingDisabled = true
+        if defaultBackground and defaultBackground.SetClampedToScreen and not defaultBackground.__lilyuiClampingDisabled then
+            defaultBackground.__lilyuiClampingDisabled = true
             defaultBackground:SetClampedToScreen(false)
             if defaultBackground.HookScript then
                 defaultBackground:HookScript("OnShow", function(self)
@@ -827,17 +827,17 @@ local function ApplyQuickJoinToastButtonOffset(button, offsetX, offsetY)
     if not point or not relativeTo then return end
     
     -- Store base position if not already stored or if anchor changed
-    if not button.__nephuiBaseAnchor or 
-       button.__nephuiBaseAnchor.relativeTo ~= relativeTo or
-       button.__nephuiBaseAnchor.point ~= point then
+    if not button.__lilyuiBaseAnchor or 
+       button.__lilyuiBaseAnchor.relativeTo ~= relativeTo or
+       button.__lilyuiBaseAnchor.point ~= point then
         
         -- Calculate base position by subtracting previously applied offset
-        local currentOffsetX = button.__nephuiLastOffsetX or 0
-        local currentOffsetY = button.__nephuiLastOffsetY or 0
+        local currentOffsetX = button.__lilyuiLastOffsetX or 0
+        local currentOffsetY = button.__lilyuiLastOffsetY or 0
         local baseX = (xOfs or 0) - currentOffsetX
         local baseY = (yOfs or 0) - currentOffsetY
         
-        button.__nephuiBaseAnchor = {
+        button.__lilyuiBaseAnchor = {
             point = point,
             relativeTo = relativeTo,
             relativePoint = relativePoint or point,
@@ -846,13 +846,13 @@ local function ApplyQuickJoinToastButtonOffset(button, offsetX, offsetY)
         }
     end
     
-    local baseAnchor = button.__nephuiBaseAnchor
+    local baseAnchor = button.__lilyuiBaseAnchor
     
     -- Update stored offset values
-    local lastOffsetX = button.__nephuiLastOffsetX or 0
-    local lastOffsetY = button.__nephuiLastOffsetY or 0
-    button.__nephuiLastOffsetX = offsetX
-    button.__nephuiLastOffsetY = offsetY
+    local lastOffsetX = button.__lilyuiLastOffsetX or 0
+    local lastOffsetY = button.__lilyuiLastOffsetY or 0
+    button.__lilyuiLastOffsetX = offsetX
+    button.__lilyuiLastOffsetY = offsetY
     
     -- Calculate final position
     local finalX = baseAnchor.xOfs + offsetX
@@ -885,8 +885,8 @@ function Chat:UpdateQuickJoinToastButton()
     if cfg.hideQuickJoinToastButton then
         quickJoinButton:Hide()
         -- Hook OnShow to keep it hidden
-        if not quickJoinButton.__nephuiHideHooked then
-            quickJoinButton.__nephuiHideHooked = true
+        if not quickJoinButton.__lilyuiHideHooked then
+            quickJoinButton.__lilyuiHideHooked = true
             quickJoinButton:HookScript("OnShow", function(self)
                 local cfg2 = LilyUI.db.profile.chat
                 if cfg2 and cfg2.hideQuickJoinToastButton then
@@ -896,9 +896,9 @@ function Chat:UpdateQuickJoinToastButton()
         end
     else
         -- Unhook and show if setting is disabled
-        if quickJoinButton.__nephuiHideHooked then
+        if quickJoinButton.__lilyuiHideHooked then
             quickJoinButton:SetScript("OnShow", nil)
-            quickJoinButton.__nephuiHideHooked = nil
+            quickJoinButton.__lilyuiHideHooked = nil
         end
         -- Don't force show, let it show naturally if it wants to
     end
@@ -908,11 +908,11 @@ function Chat:UpdateQuickJoinToastButton()
     local offsetY = cfg.quickJoinToastButtonOffsetY or -23
     
     -- Hook SetPoint to intercept positioning and apply our offset
-    if not quickJoinButton.__nephuiSetPointHooked then
-        quickJoinButton.__nephuiSetPointHooked = true
+    if not quickJoinButton.__lilyuiSetPointHooked then
+        quickJoinButton.__lilyuiSetPointHooked = true
         hooksecurefunc(quickJoinButton, "SetPoint", function(self, ...)
             -- Clear base anchor so it gets recalculated from new position
-            self.__nephuiBaseAnchor = nil
+            self.__lilyuiBaseAnchor = nil
             -- Apply offset after Blizzard sets the position
             C_Timer.After(0, function()
                 local cfg3 = LilyUI.db.profile.chat
@@ -923,8 +923,8 @@ function Chat:UpdateQuickJoinToastButton()
         end)
         
         -- Also hook OnShow to apply offset when button appears
-        if not quickJoinButton.__nephuiShowHooked then
-            quickJoinButton.__nephuiShowHooked = true
+        if not quickJoinButton.__lilyuiShowHooked then
+            quickJoinButton.__lilyuiShowHooked = true
             quickJoinButton:HookScript("OnShow", function(self)
                 C_Timer.After(0.1, function()
                     local cfg4 = LilyUI.db.profile.chat
@@ -952,20 +952,20 @@ function Chat:RefreshAll()
     for i = 1, numChatWindows do
         local chatFrame = _G["ChatFrame" .. i]
         if chatFrame then
-            chatFrame.__nephuiSkinned = nil
+            chatFrame.__lilyuiSkinned = nil
             -- Also clear clamping disabled flag so it gets reapplied
-            chatFrame.__nephuiClampingDisabled = nil
+            chatFrame.__lilyuiClampingDisabled = nil
             if chatFrame.Background then
-                chatFrame.Background.__nephuiClampingDisabled = nil
+                chatFrame.Background.__lilyuiClampingDisabled = nil
             end
         end
     end
     
     if DEFAULT_CHAT_FRAME then
-        DEFAULT_CHAT_FRAME.__nephuiSkinned = nil
-        DEFAULT_CHAT_FRAME.__nephuiClampingDisabled = nil
+        DEFAULT_CHAT_FRAME.__lilyuiSkinned = nil
+        DEFAULT_CHAT_FRAME.__lilyuiClampingDisabled = nil
         if DEFAULT_CHAT_FRAME.Background then
-            DEFAULT_CHAT_FRAME.Background.__nephuiClampingDisabled = nil
+            DEFAULT_CHAT_FRAME.Background.__lilyuiClampingDisabled = nil
         end
     end
     

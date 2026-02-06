@@ -13,7 +13,7 @@ function ns.CreateRaidFrameOptions()
         args = {
             fallback = {
                 type = "description",
-                name = "Raid frame options are not available yet.",
+                name = "Raid frame options are loading.",
                 order = 1,
             },
         },

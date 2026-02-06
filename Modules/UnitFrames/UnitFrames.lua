@@ -384,7 +384,7 @@ function UF:ApplyBossPreviewData(unitFrame, bossIndex)
     end
 
     -- Apply fake absorb data (hide during preview so health texture is visible)
-    local absorbBar = unitFrame.__nephuiAbsorbBar
+    local absorbBar = unitFrame.__lilyuiAbsorbBar
     if absorbBar then
         absorbBar:SetMinMaxValues(0, fakeData.maxHealth)
         absorbBar:SetValue(0)
@@ -657,7 +657,7 @@ function UF:HideBossFramesPreview()
         if unitFrame then
             -- Re-register unit watch so frames hide when no real bosses
             RegisterUnitWatch(unitFrame, false)
-            unitFrame.__nephuiUnitWatchActive = true
+            unitFrame.__lilyuiUnitWatchActive = true
             unitFrame:Hide()
         end
 

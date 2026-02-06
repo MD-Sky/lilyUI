@@ -158,6 +158,8 @@ UnitFrames.ExportCategories = {
         "combatFilterAppliesTo",
         "combatBuffSpellList",
         "combatDebuffSpellList",
+        "combatWhitelistSpellList",
+        "combatBlacklistSpellList",
         "combatDisplayMode",
         "combatAuraDebugEnabled",
         "combatAuraDebugSpellId",

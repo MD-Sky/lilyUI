@@ -1475,7 +1475,7 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                 for _, icon in ipairs(unitFrame.debuffIcons) do
                                     if icon and icon.cooldown then
                                         -- Trigger cooldown font refresh
-                                        if icon.cooldown._nephui_fontString then
+                                        if icon.cooldown._lilyui_fontString then
                                             local debuffSettings = DB.Auras.Debuffs
                                             local fontSize = debuffSettings.cooldownFontSize or
                                                           (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownFontSize) or 18
@@ -1483,10 +1483,10 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                                            (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownTextColor) or {1, 1, 1, 1}
                                             local fontPath = LilyUI:GetGlobalFont()
                                             if fontPath then
-                                                icon.cooldown._nephui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
-                                                icon.cooldown._nephui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+                                                icon.cooldown._lilyui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
+                                                icon.cooldown._lilyui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
                                                 -- No shadow for target auras, they use outline instead
-                                                icon.cooldown._nephui_fontString:SetShadowOffset(0, 0)
+                                                icon.cooldown._lilyui_fontString:SetShadowOffset(0, 0)
                                             end
                                         end
                                     end
@@ -1523,7 +1523,7 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                 for _, icon in ipairs(unitFrame.debuffIcons) do
                                     if icon and icon.cooldown then
                                         -- Trigger cooldown font refresh
-                                        if icon.cooldown._nephui_fontString then
+                                        if icon.cooldown._lilyui_fontString then
                                             local debuffSettings = DB.Auras.Debuffs
                                             local fontSize = debuffSettings.cooldownFontSize or
                                                           (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownFontSize) or 18
@@ -1531,10 +1531,10 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                                            (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownTextColor) or {1, 1, 1, 1}
                                             local fontPath = LilyUI:GetGlobalFont()
                                             if fontPath then
-                                                icon.cooldown._nephui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
-                                                icon.cooldown._nephui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+                                                icon.cooldown._lilyui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
+                                                icon.cooldown._lilyui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
                                                 -- No shadow for target auras, they use outline instead
-                                                icon.cooldown._nephui_fontString:SetShadowOffset(0, 0)
+                                                icon.cooldown._lilyui_fontString:SetShadowOffset(0, 0)
                                             end
                                         end
                                     end
@@ -1783,7 +1783,7 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                 for _, icon in ipairs(unitFrame.buffIcons) do
                                     if icon and icon.cooldown then
                                         -- Trigger cooldown font refresh
-                                        if icon.cooldown._nephui_fontString then
+                                        if icon.cooldown._lilyui_fontString then
                                             local buffSettings = DB.Auras.Buffs
                                             local fontSize = buffSettings.cooldownFontSize or
                                                           (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownFontSize) or 18
@@ -1791,10 +1791,10 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                                            (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownTextColor) or {1, 1, 1, 1}
                                             local fontPath = LilyUI:GetGlobalFont()
                                             if fontPath then
-                                                icon.cooldown._nephui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
-                                                icon.cooldown._nephui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+                                                icon.cooldown._lilyui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
+                                                icon.cooldown._lilyui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
                                                 -- No shadow for target auras, they use outline instead
-                                                icon.cooldown._nephui_fontString:SetShadowOffset(0, 0)
+                                                icon.cooldown._lilyui_fontString:SetShadowOffset(0, 0)
                                             end
                                         end
                                     end
@@ -1831,7 +1831,7 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                 for _, icon in ipairs(unitFrame.buffIcons) do
                                     if icon and icon.cooldown then
                                         -- Trigger cooldown font refresh
-                                        if icon.cooldown._nephui_fontString then
+                                        if icon.cooldown._lilyui_fontString then
                                             local buffSettings = DB.Auras.Buffs
                                             local fontSize = buffSettings.cooldownFontSize or
                                                           (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownFontSize) or 18
@@ -1839,10 +1839,10 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                                                            (LilyUI.db.profile.viewers.general and LilyUI.db.profile.viewers.general.cooldownTextColor) or {1, 1, 1, 1}
                                             local fontPath = LilyUI:GetGlobalFont()
                                             if fontPath then
-                                                icon.cooldown._nephui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
-                                                icon.cooldown._nephui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
+                                                icon.cooldown._lilyui_fontString:SetFont(fontPath, fontSize, "OUTLINE")
+                                                icon.cooldown._lilyui_fontString:SetTextColor(textColor[1], textColor[2], textColor[3], textColor[4] or 1)
                                                 -- No shadow for target auras, they use outline instead
-                                                icon.cooldown._nephui_fontString:SetShadowOffset(0, 0)
+                                                icon.cooldown._lilyui_fontString:SetShadowOffset(0, 0)
                                             end
                                         end
                                     end
@@ -1888,8 +1888,8 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                         -- Trigger absorb bar texture update
                         local frameName = (unit == "player") and "LilyUI_Player" or "LilyUI_Target"
                         local unitFrame = _G[frameName]
-                        if unitFrame and unitFrame.__nephuiAbsorbBar then
-                            local absorbBar = unitFrame.__nephuiAbsorbBar
+                        if unitFrame and unitFrame.__lilyuiAbsorbBar then
+                            local absorbBar = unitFrame.__lilyuiAbsorbBar
                             if absorbBar.UpdateTexture then
                                 absorbBar.UpdateTexture()
                             end
@@ -1912,8 +1912,8 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                         -- Trigger absorb bar color update
                         local frameName = (unit == "player") and "LilyUI_Player" or "LilyUI_Target"
                         local unitFrame = _G[frameName]
-                        if unitFrame and unitFrame.__nephuiAbsorbBar then
-                            local absorbBar = unitFrame.__nephuiAbsorbBar
+                        if unitFrame and unitFrame.__lilyuiAbsorbBar then
+                            local absorbBar = unitFrame.__lilyuiAbsorbBar
                             if absorbBar.UpdateColor then
                                 absorbBar.UpdateColor()
                             end
@@ -1939,8 +1939,8 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                         -- Trigger absorb bar position update
                         local frameName = (unit == "player") and "LilyUI_Player" or "LilyUI_Target"
                         local unitFrame = _G[frameName]
-                        if unitFrame and unitFrame.__nephuiAbsorbBar then
-                            local absorbBar = unitFrame.__nephuiAbsorbBar
+                        if unitFrame and unitFrame.__lilyuiAbsorbBar then
+                            local absorbBar = unitFrame.__lilyuiAbsorbBar
                             if absorbBar.UpdatePosition then
                                 absorbBar.UpdatePosition()
                             end
@@ -1965,8 +1965,8 @@ local function CreateUnitFrameOptions(unit, displayName, order)
                         -- Trigger absorb bar fill direction update
                         local frameName = (unit == "player") and "LilyUI_Player" or "LilyUI_Target"
                         local unitFrame = _G[frameName]
-                        if unitFrame and unitFrame.__nephuiAbsorbBar then
-                            local absorbBar = unitFrame.__nephuiAbsorbBar
+                        if unitFrame and unitFrame.__lilyuiAbsorbBar then
+                            local absorbBar = unitFrame.__lilyuiAbsorbBar
                             if absorbBar.UpdateFillDirection then
                                 absorbBar.UpdateFillDirection()
                             end

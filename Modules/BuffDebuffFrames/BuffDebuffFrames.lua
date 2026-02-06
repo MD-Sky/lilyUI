@@ -45,7 +45,7 @@ BDF._processing = false
 
 -- Create custom border overlay using textures instead of backdrop
 local function CreateAuraBorderOverlay(auraFrame)
-    if auraFrame.__nephuiBorderOverlay then return end
+    if auraFrame.__lilyuiBorderOverlay then return end
     
     local overlay = CreateFrame("Frame", nil, auraFrame)
     overlay:SetAllPoints(auraFrame.Icon or auraFrame)
@@ -79,19 +79,19 @@ local function CreateAuraBorderOverlay(auraFrame)
         end
     end
     
-    auraFrame.__nephuiBorderOverlay = overlay
+    auraFrame.__lilyuiBorderOverlay = overlay
 end
 
 local function EnsureAuraTextOverlay(auraFrame)
-    if auraFrame.__nephuiTextOverlay then return auraFrame.__nephuiTextOverlay end
+    if auraFrame.__lilyuiTextOverlay then return auraFrame.__lilyuiTextOverlay end
 
-    local overlayParent = auraFrame.__nephuiBorderOverlay or auraFrame
+    local overlayParent = auraFrame.__lilyuiBorderOverlay or auraFrame
     local textOverlay = CreateFrame("Frame", nil, auraFrame)
     textOverlay:SetAllPoints(overlayParent or auraFrame)
 
     local baseLevel = (overlayParent and overlayParent:GetFrameLevel()) or (auraFrame:GetFrameLevel() or 0)
     textOverlay:SetFrameLevel(baseLevel + 1)
-    auraFrame.__nephuiTextOverlay = textOverlay
+    auraFrame.__lilyuiTextOverlay = textOverlay
 
     return textOverlay
 end

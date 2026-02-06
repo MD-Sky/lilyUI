@@ -28,7 +28,7 @@ local function CreateAbsorbBarForUnit(unit)
         return
     end
     
-    if unitFrame.__nephuiAbsorbBar then
+    if unitFrame.__lilyuiAbsorbBar then
         return
     end
     
@@ -196,7 +196,7 @@ local function CreateAbsorbBarForUnit(unit)
     -- Also update text tag levels periodically to ensure they stay on top
     -- This handles cases where the unit frame might be recreated or updated
     local textTagUpdateTicker = C_Timer.NewTicker(1.0, function()
-        if unitFrame and unitFrame.__nephuiAbsorbBar then
+        if unitFrame and unitFrame.__lilyuiAbsorbBar then
             UpdateTextTagFrameLevels()
         else
             -- Stop ticking if the frame is gone
@@ -317,7 +317,7 @@ local function CreateAbsorbBarForUnit(unit)
     end
     
     -- Store references and update functions
-    unitFrame.__nephuiAbsorbBar = absorbBar
+    unitFrame.__lilyuiAbsorbBar = absorbBar
     absorbBar.healthBar = healthBar
     absorbBar.unitFrame = unitFrame
     absorbBar.unit = unit

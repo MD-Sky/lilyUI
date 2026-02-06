@@ -66,8 +66,8 @@ local function ApplyAlphaToRegion(region)
     end
 
     region:SetAlpha(SELECTION_ALPHA)
-    if region.HookScript and not region.__nephuiSelectionAlphaHooked then
-        region.__nephuiSelectionAlphaHooked = true
+    if region.HookScript and not region.__lilyuiSelectionAlphaHooked then
+        region.__lilyuiSelectionAlphaHooked = true
         region:HookScript("OnShow", function(self)
             self:SetAlpha(SELECTION_ALPHA)
         end)
@@ -79,9 +79,9 @@ local function ForceSelectionAlpha(selection)
         return
     end
 
-    selection.__nephuiSelectionAlphaLock = true
+    selection.__lilyuiSelectionAlphaLock = true
     selection:SetAlpha(SELECTION_ALPHA)
-    selection.__nephuiSelectionAlphaLock = nil
+    selection.__lilyuiSelectionAlphaLock = nil
 end
 
 function LilyUI:ApplySelectionAlpha(selection)
@@ -91,17 +91,17 @@ function LilyUI:ApplySelectionAlpha(selection)
 
     ForceSelectionAlpha(selection)
 
-    if selection.HookScript and not selection.__nephuiSelectionOnShowHooked then
-        selection.__nephuiSelectionOnShowHooked = true
+    if selection.HookScript and not selection.__lilyuiSelectionOnShowHooked then
+        selection.__lilyuiSelectionOnShowHooked = true
         selection:HookScript("OnShow", function(self)
             LilyUI:ApplySelectionAlpha(self)
         end)
     end
 
-    if selection.SetAlpha and not selection.__nephuiSelectionAlphaHooked then
-        selection.__nephuiSelectionAlphaHooked = true
+    if selection.SetAlpha and not selection.__lilyuiSelectionAlphaHooked then
+        selection.__lilyuiSelectionAlphaHooked = true
         hooksecurefunc(selection, "SetAlpha", function(frame)
-            if frame.__nephuiSelectionAlphaLock then
+            if frame.__lilyuiSelectionAlphaLock then
                 return
             end
             ForceSelectionAlpha(frame)
@@ -354,15 +354,12 @@ function LilyUI:OnInitialize()
     self:SetupOptions()
     
     self:RegisterChatCommand("lilyui", "OpenConfig")
-    self:RegisterChatCommand("nephui", "OpenConfig")
     self:RegisterChatCommand("nui", "OpenConfig")
     self:RegisterChatCommand("lilyframes", "OpenPartyRaidFramesConfig")
     self:RegisterChatCommand("nephframes", "OpenPartyRaidFramesConfig")
     self:RegisterChatCommand("nframes", "OpenPartyRaidFramesConfig")
     self:RegisterChatCommand("lilyuirefresh", "ForceRefreshBuffIcons")
-    self:RegisterChatCommand("nephuirefresh", "ForceRefreshBuffIcons")
     self:RegisterChatCommand("lilyuicheckdualspec", "CheckDualSpec")
-    self:RegisterChatCommand("nephuicheckdualspec", "CheckDualSpec")
     
     self:CreateMinimapButton()
 end
@@ -407,11 +404,11 @@ local function StyleMicroButtonRegion(button, region)
     if not (button and region) then
         return
     end
-    if region.__nephuiStyled then
+    if region.__lilyuiStyled then
         return
     end
 
-    region.__nephuiStyled = true
+    region.__lilyuiStyled = true
     region:SetTexture(WHITE8)
     region:SetVertexColor(0, 0, 0, 1)
     region:SetAlpha(0.8)

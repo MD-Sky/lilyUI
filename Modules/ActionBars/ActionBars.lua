@@ -234,11 +234,11 @@ local function StyleActionButton(button)
     end
     
     -- Create or update backdrop texture
-    if not button.__nephuiBackdrop then
-        button.__nephuiBackdrop = button:CreateTexture(nil, "BACKGROUND", nil, -1)
+    if not button.__lilyuiBackdrop then
+        button.__lilyuiBackdrop = button:CreateTexture(nil, "BACKGROUND", nil, -1)
     end
     
-    local backdrop = button.__nephuiBackdrop
+    local backdrop = button.__lilyuiBackdrop
     local backdropColor = cfg.backdropColor or {0.1, 0.1, 0.1, 1}
     backdrop:SetTexture(BACKDROP_TEXTURE)
     -- Round to nearest integer for pixel perfect rendering
@@ -252,10 +252,10 @@ local function StyleActionButton(button)
     local configuredBorderSize = math.max(0, cfg.borderSize or 0)
     local scaledBorderSize = (LilyUI.ScaleBorder and LilyUI:ScaleBorder(configuredBorderSize)) or math.floor(LilyUI:Scale(configuredBorderSize) + 0.5)
     if scaledBorderSize > 0 then
-        if not button.__nephuiBorder then
-            button.__nephuiBorder = button:CreateTexture(nil, "BACKGROUND", nil, -2)
+        if not button.__lilyuiBorder then
+            button.__lilyuiBorder = button:CreateTexture(nil, "BACKGROUND", nil, -2)
         end
-        local border = button.__nephuiBorder
+        local border = button.__lilyuiBorder
         border:SetTexture(BACKDROP_TEXTURE)
         local totalOffset = backdropOffset + scaledBorderSize
         border:SetPoint("TOPLEFT", button, "TOPLEFT", -totalOffset, totalOffset)
@@ -263,8 +263,8 @@ local function StyleActionButton(button)
         local borderColor = cfg.borderColor or {0, 0, 0, 1}
         border:SetVertexColor(unpack(borderColor))
         border:Show()
-    elseif button.__nephuiBorder then
-        button.__nephuiBorder:Hide()
+    elseif button.__lilyuiBorder then
+        button.__lilyuiBorder:Hide()
     end
     
     -- Style the icon
@@ -335,11 +335,11 @@ local function StyleActionButton(button)
         C_Timer.After(0.1, UpdateKeybindVisibility)
         
         -- Hook SetText to validate whenever keybind text is updated
-        if not button.HotKey.__nephuiKeybindValidator then
+        if not button.HotKey.__lilyuiKeybindValidator then
             hooksecurefunc(button.HotKey, "SetText", function()
                 C_Timer.After(0.05, UpdateKeybindVisibility)
             end)
-            button.HotKey.__nephuiKeybindValidator = true
+            button.HotKey.__lilyuiKeybindValidator = true
         end
     end
     
@@ -522,7 +522,7 @@ local function AttachMouseoverToBar(barFrame, buttonPrefix, buttonProvider)
     end
     
     -- Store barButtons on the frame for later access
-    barFrame.__nephuiBarButtons = barButtons
+    barFrame.__lilyuiBarButtons = barButtons
     
     -- Configure frame for mouse interaction
     barFrame:EnableMouse(true)

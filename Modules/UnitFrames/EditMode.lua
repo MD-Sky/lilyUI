@@ -223,8 +223,8 @@ local function SetViewerSelectionCenterAlpha()
             if center.SetAlpha then
                 center:SetAlpha(0.3)
                 -- Hook OnShow to maintain alpha when frame is shown
-                if not center.__nephuiAlphaSet then
-                    center.__nephuiAlphaSet = true
+                if not center.__lilyuiAlphaSet then
+                    center.__lilyuiAlphaSet = true
                     center:HookScript("OnShow", function(self)
                         self:SetAlpha(0.3)
                     end)
@@ -242,8 +242,8 @@ local function HideBlizzardSelectionFrames()
     -- Hide Selection frames if they exist and set up hooks
     local function HideSelectionFrame(frame, selectionFrame)
         if frame and selectionFrame then
-            if not selectionFrame.__nephuiSelectionHidden then
-                selectionFrame.__nephuiSelectionHidden = true
+            if not selectionFrame.__lilyuiSelectionHidden then
+                selectionFrame.__lilyuiSelectionHidden = true
                 -- Hook OnShow to keep it hidden
                 selectionFrame:HookScript("OnShow", function(self)
                     local db = LilyUI.db.profile.unitFrames
@@ -267,12 +267,12 @@ local function EnsureAnchorModeUnitVisibility(unitFrame, shouldForceShow)
     if not unitFrame then return end
 
     if shouldForceShow then
-        if unitFrame.__nephuiUnitWatchActive and not InCombatLockdown() then
+        if unitFrame.__lilyuiUnitWatchActive and not InCombatLockdown() then
             UnregisterUnitWatch(unitFrame)
-            unitFrame.__nephuiUnitWatchActive = nil
-            unitFrame.__nephuiUnitWatchNeedsRestore = true
+            unitFrame.__lilyuiUnitWatchActive = nil
+            unitFrame.__lilyuiUnitWatchNeedsRestore = true
         end
-        unitFrame.__nephuiEditModeForced = true
+        unitFrame.__lilyuiEditModeForced = true
         unitFrame:Show()
 
         if unitFrame.unit and not UnitExists(unitFrame.unit) then
@@ -301,13 +301,13 @@ local function EnsureAnchorModeUnitVisibility(unitFrame, shouldForceShow)
                 unitFrame.healthBarBG:Show()
             end
         end
-    elseif unitFrame.__nephuiEditModeForced then
-        unitFrame.__nephuiEditModeForced = nil
+    elseif unitFrame.__lilyuiEditModeForced then
+        unitFrame.__lilyuiEditModeForced = nil
 
-        if unitFrame.__nephuiUnitWatchNeedsRestore and not InCombatLockdown() then
+        if unitFrame.__lilyuiUnitWatchNeedsRestore and not InCombatLockdown() then
             RegisterUnitWatch(unitFrame, false)
-            unitFrame.__nephuiUnitWatchActive = true
-            unitFrame.__nephuiUnitWatchNeedsRestore = nil
+            unitFrame.__lilyuiUnitWatchActive = true
+            unitFrame.__lilyuiUnitWatchNeedsRestore = nil
         end
 
         if unitFrame.unit and not UnitExists(unitFrame.unit) then

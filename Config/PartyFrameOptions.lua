@@ -13,7 +13,7 @@ function ns.CreatePartyFrameOptions()
         args = {
             fallback = {
                 type = "description",
-                name = "Party frame options are not available yet.",
+                name = "Party frame options are loading.",
                 order = 1,
             },
         },

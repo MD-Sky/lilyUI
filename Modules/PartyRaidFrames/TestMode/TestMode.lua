@@ -186,7 +186,7 @@ function UnitFrames:EnableTestMode(mode)
     end
     
     local modeText = wantsRaid and "raid" or "party"
-    self:Print("Test mode (" .. modeText .. ") enabled. Use /nephui testmode to disable.")
+    self:Print("Test mode (" .. modeText .. ") enabled. Use /lilyui testmode to disable.")
 end
 
 --[[
@@ -831,8 +831,8 @@ end
 -- ============================================================================
 
 -- Register slash command for test mode
-SLASH_NEPHUITEST1 = "/nephuitest"
-SlashCmdList["NEPHUITEST"] = function(msg)
+SLASH_LILYUITEST1 = "/lilyuitest"
+SlashCmdList["LILYUITEST"] = function(msg)
     msg = msg:lower():trim()
     
     if msg == "party" then
@@ -855,12 +855,12 @@ SlashCmdList["NEPHUITEST"] = function(msg)
         UnitFrames:DisableTestMode()
     else
         print("LilyUI Test Mode Commands:")
-        print("  /nephuitest - Toggle party test mode")
-        print("  /nephuitest party - Toggle party test frames")
-        print("  /nephuitest raid - Toggle raid test frames")
-        print("  /nephuitest both - Enable both party and raid test modes")
-        print("  /nephuitest animate - Start animated test")
-        print("  /nephuitest stop - Stop animated test")
-        print("  /nephuitest off - Disable all test modes")
+        print("  /lilyuitest - Toggle party test mode")
+        print("  /lilyuitest party - Toggle party test frames")
+        print("  /lilyuitest raid - Toggle raid test frames")
+        print("  /lilyuitest both - Enable both party and raid test modes")
+        print("  /lilyuitest animate - Start animated test")
+        print("  /lilyuitest stop - Stop animated test")
+        print("  /lilyuitest off - Disable all test modes")
     end
 end

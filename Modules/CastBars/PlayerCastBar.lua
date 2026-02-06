@@ -80,8 +80,8 @@ function CastBars:UpdateCastBarLayout()
             -- Custom cast bar is enabled, hide the default one
             defaultCastBar:SetAlpha(0)
             -- Hook OnShow to keep it at alpha 0 and hide child regions (including "Interrupted" text)
-            if not defaultCastBar.__nephuiAlphaHooked then
-                defaultCastBar.__nephuiAlphaHooked = true
+            if not defaultCastBar.__lilyuiAlphaHooked then
+                defaultCastBar.__lilyuiAlphaHooked = true
                 
                 -- Hide all child regions (including "Interrupted" text)
                 local function HideChildRegions(frame)

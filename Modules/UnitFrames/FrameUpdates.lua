@@ -464,9 +464,9 @@ function UF:UpdateUnitFrame(unit)
     if shouldHideUnitFrame then
         unitFrame:Hide()
         unitFrame:UnregisterAllEvents()
-        if unitFrame.__nephuiUnitWatchActive and not inCombat then
+        if unitFrame.__lilyuiUnitWatchActive and not inCombat then
             UnregisterUnitWatch(unitFrame)
-            unitFrame.__nephuiUnitWatchActive = nil
+            unitFrame.__lilyuiUnitWatchActive = nil
         end
         unitFrame:SetScript("OnEvent", nil)
         unitFrame:SetScript("OnEnter", nil)
@@ -477,7 +477,7 @@ function UF:UpdateUnitFrame(unit)
             -- In boss preview mode, unregister unit watch and force show
             if not inCombat then
                 UnregisterUnitWatch(unitFrame)
-                unitFrame.__nephuiUnitWatchActive = false
+                unitFrame.__lilyuiUnitWatchActive = false
             end
             unitFrame:Show()
         else
@@ -485,7 +485,7 @@ function UF:UpdateUnitFrame(unit)
             if not inCombat then
                 UnregisterUnitWatch(unitFrame)
                 RegisterUnitWatch(unitFrame, false)
-                unitFrame.__nephuiUnitWatchActive = true
+                unitFrame.__lilyuiUnitWatchActive = true
             end
             -- Don't force show - let UnitWatch handle visibility
         end

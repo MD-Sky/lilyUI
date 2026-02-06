@@ -1,6 +1,0 @@
-12/18 17:41:15.446  vendor: AuthenticAMD
-12/18 17:41:15.446  branding: AMD Ryzen 7 9700X 8-Core Processor             
-12/18 17:41:15.446  features: lahf64 cmpxchg16b sse sse2 sse3 ssse3 sse41 sse42 avx avx2 avx512f aesni clmul sha rdrand 
-12/18 17:41:15.446  sockets: 1
-12/18 17:41:15.446  cores: 8
-12/18 17:41:15.446  threads: 16

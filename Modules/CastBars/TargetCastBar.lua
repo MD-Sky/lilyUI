@@ -201,8 +201,8 @@ end
 function CastBars:HookTargetAndFocusCastBars()
     -- Hook Target cast bar
     local targetSpellbar = _G["TargetFrame"] and _G["TargetFrame"].spellbar
-    if targetSpellbar and not targetSpellbar.__nephuiHooked then
-        targetSpellbar.__nephuiHooked = true
+    if targetSpellbar and not targetSpellbar.__lilyuiHooked then
+        targetSpellbar.__lilyuiHooked = true
         
         targetSpellbar:HookScript("OnShow", function(self)
             local cfg = LilyUI.db.profile.targetCastBar

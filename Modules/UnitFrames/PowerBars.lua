@@ -183,8 +183,8 @@ function UF:CreatePowerBar(unitFrame, unit, DB, PowerBarDB)
     local unitFramePowerBar = CreateFrame("StatusBar", nil, unitFrame)
     unitFrame.powerBar = unitFramePowerBar
 
-    if not unitFramePowerBar.__nephuiHealthAnchorHooks then
-        unitFramePowerBar.__nephuiHealthAnchorHooks = true
+    if not unitFramePowerBar.__lilyuiHealthAnchorHooks then
+        unitFramePowerBar.__lilyuiHealthAnchorHooks = true
         unitFramePowerBar:HookScript("OnShow", function(bar)
             local parentFrame = bar:GetParent()
             local barUnit = bar.unit or (parentFrame and parentFrame.unit)
@@ -339,8 +339,8 @@ function UF:HookTargetAndFocusPowerBars()
     -- Hook Target power bar
     local targetFrame = _G["TargetFrame"]
     local targetPowerBar = targetFrame and (targetFrame.manabar or targetFrame.powerBar)
-    if targetPowerBar and not targetPowerBar.__nephuiHooked then
-        targetPowerBar.__nephuiHooked = true
+    if targetPowerBar and not targetPowerBar.__lilyuiHooked then
+        targetPowerBar.__lilyuiHooked = true
         
         -- Get our custom target power bar
         local targetUnitFrame = _G["LilyUI_Target"]
@@ -423,8 +423,8 @@ function UF:HookTargetAndFocusPowerBars()
     -- Hook Focus power bar
     local focusFrame = _G["FocusFrame"]
     local focusPowerBar = focusFrame and (focusFrame.manabar or focusFrame.powerBar)
-    if focusPowerBar and not focusPowerBar.__nephuiHooked then
-        focusPowerBar.__nephuiHooked = true
+    if focusPowerBar and not focusPowerBar.__lilyuiHooked then
+        focusPowerBar.__lilyuiHooked = true
         
         -- Get our custom focus power bar
         local focusUnitFrame = _G["LilyUI_Focus"]

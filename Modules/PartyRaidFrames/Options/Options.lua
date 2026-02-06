@@ -30,7 +30,7 @@ function ns.CreatePartyFrameOptions()
         args = {
             fallback = {
                 type = "description",
-                name = "Party frame options are not available yet. Please reload your UI.",
+                name = "Party frame options are loading. Please reload your UI if this persists.",
                 order = 1,
             },
         },
@@ -55,7 +55,7 @@ function ns.CreateRaidFrameOptions()
         args = {
             fallback = {
                 type = "description",
-                name = "Raid frame options are not available yet. Please reload your UI.",
+                name = "Raid frame options are loading. Please reload your UI if this persists.",
                 order = 1,
             },
         },
@@ -189,7 +189,7 @@ function UnitFrames:CreateMinimapButton()
     
     local dataObject = LDB:NewDataObject("LilyUIFrames", {
         type = "launcher",
-        icon = "Interface\\AddOns\\lilyUI\\Media\\nephui",
+        icon = "Interface\\AddOns\\lilyUI\\Media\\lilyui",
         OnClick = function(self, button)
             if button == "LeftButton" then
                 UnitFrames:ToggleMovers()

@@ -83,6 +83,10 @@ function UnitFrames:InitializeDB()
         self.db.raid = profile.raidFrames
         
         self:SyncProfile()
+        if self.SeedDefaultCombatWhitelist then
+            self:SeedDefaultCombatWhitelist(self.db.party)
+            self:SeedDefaultCombatWhitelist(self.db.raid)
+        end
         return
     end
     
@@ -92,6 +96,24 @@ function UnitFrames:InitializeDB()
             party = self:DeepCopy(self.PartyDefaults or {}),
             raid = self:DeepCopy(self.RaidDefaults or {}),
         }
+    end
+    if self.SeedDefaultCombatWhitelist then
+        self:SeedDefaultCombatWhitelist(self.db.party)
+        self:SeedDefaultCombatWhitelist(self.db.raid)
+    end
+end
+
+function UnitFrames:SeedDefaultCombatWhitelist(db)
+    if not db then return end
+    if type(db.combatWhitelistSpellList) ~= "table" then
+        db.combatWhitelistSpellList = {}
+    end
+    local list = db.combatWhitelistSpellList
+    if next(list) == nil then
+        list[8936] = true
+        if LilyUI and LilyUI.DebugWindowLog then
+            LilyUI:DebugWindowLog("Lists", "[Lists] Default whitelist seeded with Regrowth (8936)")
+        end
     end
 end
 

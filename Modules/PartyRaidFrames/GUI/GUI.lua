@@ -7,6 +7,7 @@ local ADDON_NAME, ns = ...
 local LilyUI = ns.Addon
 LilyUI.PartyFrames = LilyUI.PartyFrames or {}
 local UnitFrames = LilyUI.PartyFrames
+local SpellProvider = ns.SpellProvider or (LilyUI and LilyUI.SpellProvider)
 
 -- ============================================================================
 -- GUI BUILDER
@@ -528,8 +529,13 @@ end
 -- ============================================================================
 
 function UnitFrames:BuildAuraOptions(frameType, isRaid)
+    local unitFrames = self
     local function GetDB()
         return isRaid and self:GetRaidDB() or self:GetDB()
+    end
+
+    if self.EnsureCombatLists then
+        self:EnsureCombatLists(GetDB())
     end
     
     local function UpdateFrames()
@@ -537,10 +543,26 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
     end
 
     local function RefreshAuras()
+        local count = 0
+        if frameType == "party" then
+            if self.partyFrames then
+                for _ in pairs(self.partyFrames) do count = count + 1 end
+            end
+        else
+            if self.raidFrames then
+                for _ in pairs(self.raidFrames) do count = count + 1 end
+            end
+        end
         if self.RefreshAuraIcons then
             self:RefreshAuraIcons(frameType)
         else
             self:RequestRefresh(frameType, {auras = true})
+        end
+        if self.devMode and self.DebugPrint then
+            self:DebugPrint("[PartyFrames] Auras refreshed (frames=" .. tostring(count) .. ")")
+        end
+        if SpellProvider and SpellProvider.Log then
+            SpellProvider:Log("[PartyFrames] Auras refreshed (frames=" .. tostring(count) .. ")")
         end
     end
 
@@ -584,10 +606,15 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
     end
 
     local function RefreshOptionsUI()
-        NotifyOptionsChanged()
         local configFrame = _G["LilyUI_ConfigFrame"]
-        if configFrame and configFrame:IsShown() and configFrame.FullRefresh then
-            configFrame:FullRefresh()
+        if configFrame and configFrame:IsShown() then
+            if configFrame.SoftRefresh then
+                configFrame:SoftRefresh()
+            elseif configFrame.Refresh then
+                configFrame:Refresh()
+            elseif configFrame.FullRefresh then
+                configFrame:FullRefresh()
+            end
         end
     end
 
@@ -627,18 +654,18 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         self._combatSpellFinderState = self._combatSpellFinderState or {}
         local state = self._combatSpellFinderState[frameType]
         if not state then
-            state = { target = "BUFFS", mode = "NAME" }
+            state = { target = "WHITELIST", mode = "NAME" }
             self._combatSpellFinderState[frameType] = state
         end
         return state
     end
 
     local function GetFinderTarget()
-        return GetFinderState().target or "BUFFS"
+        return GetFinderState().target or "WHITELIST"
     end
 
     local function SetFinderTarget(val)
-        GetFinderState().target = val or "BUFFS"
+        GetFinderState().target = val or "WHITELIST"
     end
 
     local function GetFinderMode()
@@ -647,6 +674,28 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
 
     local function SetFinderMode(val)
         GetFinderState().mode = val or "NAME"
+    end
+
+    local function SpellFinderDebug(msg)
+        if not msg then return end
+        local text = "[SF] " .. tostring(msg)
+        if LilyUI and LilyUI.DebugWindowLog then
+            LilyUI:DebugWindowLog("SpellFinder", "%s", text)
+        elseif self and self.devMode and self.DebugPrint then
+            self:DebugPrint(text)
+        end
+    end
+
+    local function SafeTrim(value)
+        if type(value) == "string" then
+            return value:match("^%s*(.-)%s*$") or value
+        end
+        if value == nil then return "" end
+        local ok, str = pcall(tostring, value)
+        if ok and type(str) == "string" then
+            return str:match("^%s*(.-)%s*$") or str
+        end
+        return ""
     end
 
     local function ParseSpellId(value)
@@ -677,18 +726,36 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         return nil
     end
 
-    local function AddSpellIdValue(listKey, spellId)
+    local function AddSpellIdValue(listKey, spellId, closePicker)
         if not spellId or spellId <= 0 then return end
         local list = EnsureSpellList(listKey)
         list[spellId] = true
         RefreshAuras()
-        RefreshOptionsUI()
+        if unitFrames and unitFrames.RefreshAuraListsUI then
+            unitFrames:RefreshAuraListsUI(frameType)
+        end
+        if closePicker and self._spellPickerFrame and self._spellPickerFrame.Hide then
+            self._spellPickerFrame:Hide()
+        end
+        NotifyOptionsChanged()
+        SpellFinderDebug("Add spellID=" .. tostring(spellId) .. " list=" .. tostring(listKey))
+        if LilyUI and LilyUI.DebugWindowLog then
+            local modeLabel = (type(listKey) == "string" and listKey:find("^combat")) and "combat" or "out"
+            local filterMode = modeLabel == "combat" and (GetDB().combatFilterMode or "NONE") or (GetDB().buffFilterMode or "NONE")
+            local targetLabel = "list"
+            if filterMode == "WHITELIST" then
+                targetLabel = "whitelist"
+            elseif filterMode == "BLACKLIST" then
+                targetLabel = "blacklist"
+            end
+            LilyUI:DebugWindowLog("Lists", "[Lists] Added spellID=%s list=%s mode=%s", tostring(spellId), tostring(listKey), tostring(modeLabel))
+        end
     end
 
     local function AddSpellId(listKey)
         local spellId = ParseSpellId(GetInputValue(listKey))
         if not spellId or spellId <= 0 then return end
-        AddSpellIdValue(listKey, spellId)
+        AddSpellIdValue(listKey, spellId, false)
         SetInputValue(listKey, "")
     end
 
@@ -704,17 +771,28 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
             end
         end
         RefreshAuras()
-        RefreshOptionsUI()
+        if unitFrames and unitFrames.RefreshAuraListsUI then
+            unitFrames:RefreshAuraListsUI(frameType)
+        end
+        if LilyUI and LilyUI.DebugWindowLog then
+            local modeLabel = (type(listKey) == "string" and listKey:find("^combat")) and "combat" or "out"
+            LilyUI:DebugWindowLog("Lists", "[Lists] Removed spellID=%s list=%s mode=%s", tostring(spellId), tostring(listKey), tostring(modeLabel))
+        end
+        NotifyOptionsChanged()
     end
 
     local function EnsureSpellPickerEvents()
         if self._spellPickerEventFrame then return end
         local eventFrame = CreateFrame("Frame")
         eventFrame:RegisterEvent("SPELLS_CHANGED")
+        eventFrame:RegisterEvent("PLAYER_LOGIN")
+        eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
         eventFrame:RegisterEvent("PLAYER_TALENT_UPDATE")
         eventFrame:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
         eventFrame:SetScript("OnEvent", function()
-            self._spellPickerCacheDirty = true
+            if SpellProvider and SpellProvider.EnsureBuilt then
+                SpellProvider:EnsureBuilt(true)
+            end
             if self._spellPickerFrame and self._spellPickerFrame.IsShown and self._spellPickerFrame:IsShown() then
                 if self._spellPickerFrame.RefreshList then
                     self._spellPickerFrame:RefreshList()
@@ -724,71 +802,12 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         self._spellPickerEventFrame = eventFrame
     end
 
-    local function BuildSpellbookCache()
-        local spells = {}
-        local seen = {}
-
-        if not GetSpellBookItemInfo then
-            return spells
-        end
-
-        local function AddSpell(spellId, name, icon)
-            if not spellId or seen[spellId] then return end
-            local info = (C_Spell and C_Spell.GetSpellInfo) and C_Spell.GetSpellInfo(spellId) or nil
-            name = name or (info and info.name) or (GetSpellInfo and GetSpellInfo(spellId)) or nil
-            if not name then return end
-            icon = icon or (info and (info.iconID or info.icon)) or (GetSpellTexture and GetSpellTexture(spellId)) or nil
-            spells[#spells + 1] = { spellID = spellId, name = name, nameLower = name:lower(), icon = icon }
-            seen[spellId] = true
-        end
-
-        local function ScanSpellbook()
-            if GetNumSpellTabs and GetSpellTabInfo then
-                local numTabs = GetNumSpellTabs()
-                local classTab = (numTabs and numTabs >= 2) and 2 or 1
-                local _, _, offset, numSpells = GetSpellTabInfo(classTab)
-                for i = 1, numSpells do
-                    local slot = offset + i
-                    local itemType, spellId = GetSpellBookItemInfo(slot, "spell")
-                    if itemType == "SPELL" or itemType == "FUTURESPELL" then
-                        AddSpell(spellId)
-                    end
-                end
-                return true
-            end
-
-            if C_SpellBook and C_SpellBook.GetNumSpellBookSkillLines and C_SpellBook.GetSpellBookSkillLineInfo then
-                local numLines = C_SpellBook.GetNumSpellBookSkillLines()
-                local classLine = (numLines and numLines >= 2) and 2 or 1
-                local info = C_SpellBook.GetSpellBookSkillLineInfo(classLine)
-                local offset = (info and (info.itemIndexOffset or info.itemOffset or info.offset)) or 0
-                local numSpells = (info and (info.numSpellBookItems or info.numSpells)) or 0
-                for i = 1, numSpells do
-                    local slot = offset + i
-                    local itemType, spellId = GetSpellBookItemInfo(slot, "spell")
-                    if itemType == "SPELL" or itemType == "FUTURESPELL" then
-                        AddSpell(spellId)
-                    end
-                end
-                return true
-            end
-
-            return false
-        end
-
-        ScanSpellbook()
-        table.sort(spells, function(a, b)
-            return (a.name or "") < (b.name or "")
-        end)
-        return spells
-    end
-
     local function GetSpellPickerCache()
-        if not self._spellPickerCache or self._spellPickerCacheDirty then
-            self._spellPickerCache = BuildSpellbookCache()
-            self._spellPickerCacheDirty = nil
+        if SpellProvider and SpellProvider.EnsureBuilt then
+            SpellProvider:EnsureBuilt()
+            return SpellProvider:GetAllSpells()
         end
-        return self._spellPickerCache or {}
+        return {}
     end
 
     local function EnsureSpellPickerFrame()
@@ -862,22 +881,40 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         frame.content = content
         frame.rows = {}
 
+        local statusText = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
+        statusText:SetPoint("TOPLEFT", content, "TOPLEFT", 8, -8)
+        statusText:SetJustifyH("LEFT")
+        statusText:Hide()
+
+        local refreshButton = CreateFrame("Button", nil, content, "UIPanelButtonTemplate")
+        refreshButton:SetSize(90, 20)
+        refreshButton:SetPoint("TOPLEFT", statusText, "BOTTOMLEFT", 0, -8)
+        refreshButton:SetText("Refresh")
+        refreshButton:Hide()
+
         local rowHeight = 24
 
-        local function UpdateRows()
-            local filter = (searchBox:GetText() or ""):lower()
-            local spells = GetSpellPickerCache()
-            local filtered = {}
+        local function UpdateRows(spells)
+            local filterText = SafeTrim((searchBox and searchBox.GetText and searchBox:GetText()) or "")
+            spells = spells or GetSpellPickerCache()
+            local filtered = (SpellProvider and SpellProvider.Filter and SpellProvider:Filter(spells, filterText)) or spells or {}
+            local modeLabel = (frame.mode == "ID") and "ID" or "NAME"
 
-            if filter == "" then
-                filtered = spells
-            else
-                for _, spell in ipairs(spells) do
-                    if spell.nameLower and spell.nameLower:find(filter, 1, true) then
-                        filtered[#filtered + 1] = spell
+            local function BuildFirst3(entries)
+                local parts = {}
+                for i = 1, math.min(3, #entries) do
+                    local e = entries[i]
+                    if e then
+                        local id = e.spellID or "?"
+                        local name = e.name or "?"
+                        parts[#parts + 1] = tostring(id) .. ":" .. tostring(name)
                     end
                 end
+                return table.concat(parts, ", ")
             end
+
+            SpellFinderDebug("RefreshList start. mode=" .. modeLabel .. " query=\"" .. tostring(filterText or "") .. "\"")
+            SpellFinderDebug("Filter results=" .. tostring(#filtered) .. " (first3: " .. BuildFirst3(filtered) .. ")")
 
             for i, spell in ipairs(filtered) do
                 local row = frame.rows[i]
@@ -919,7 +956,7 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                     end)
                     row:SetScript("OnClick", function(selfRow)
                         if not selfRow.spellID then return end
-                        AddSpellIdValue(frame.targetListKey, selfRow.spellID)
+                        AddSpellIdValue(frame.targetListKey, selfRow.spellID, true)
                     end)
 
                     frame.rows[i] = row
@@ -929,7 +966,11 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
 
                 row.spellID = spell.spellID
                 row.icon:SetTexture(spell.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-                row.name:SetText(spell.name or ("Spell " .. tostring(spell.spellID)))
+                local nameText = spell.name or ("Spell " .. tostring(spell.spellID))
+                if spell.isExternal then
+                    nameText = nameText .. " (not in spellbook)"
+                end
+                row.name:SetText(nameText)
                 row.id:SetText(spell.spellID)
                 row:Show()
             end
@@ -938,7 +979,27 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                 frame.rows[i]:Hide()
             end
 
-            content:SetHeight(math.max(1, (#filtered * rowHeight) + 4))
+            local totalSpells = spells and #spells or 0
+            local results = #filtered
+
+            if totalSpells == 0 then
+                statusText:SetText(frame._spellFinderLoading and "Loading spells..." or "No spells found yet. Try again in a moment.")
+                statusText:Show()
+                refreshButton:Show()
+                SpellFinderDebug("Empty: provider=0 filter=" .. tostring(results) .. " reason=provider empty")
+            elseif results == 0 then
+                statusText:SetText("No results")
+                statusText:Show()
+                refreshButton:Hide()
+                SpellFinderDebug("Empty: provider=" .. tostring(totalSpells) .. " filter=0 reason=filter empty")
+            else
+                statusText:Hide()
+                refreshButton:Hide()
+            end
+
+            content:SetHeight(math.max(1, (math.max(results, statusText:IsShown() and 1 or 0) * rowHeight) + 4))
+
+            SpellFinderDebug("Rows created=" .. tostring(results) .. " rowsShown=" .. tostring(results) .. " scrollChildHeight=" .. tostring(content:GetHeight() or 0))
         end
 
         local idStatus = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
@@ -975,12 +1036,22 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         local function UpdateIdPreview()
             local input = idBox:GetText() or ""
             local spellId = ParseSpellId(input)
-            local name = spellId and GetSpellInfo and GetSpellInfo(spellId) or nil
-            if spellId and name then
-                local icon = GetSpellTexture and GetSpellTexture(spellId) or "Interface\\Icons\\INV_Misc_QuestionMark"
+            local info = nil
+            if spellId and C_Spell and C_Spell.GetSpellInfo then
+                local ok, t = pcall(C_Spell.GetSpellInfo, spellId)
+                if ok then info = t end
+            end
+            local name = spellId and ((info and info.name) or (GetSpellInfo and GetSpellInfo(spellId))) or nil
+            if spellId and name and name ~= "" then
+                local icon = (info and (info.iconID or info.icon)) or (GetSpellTexture and GetSpellTexture(spellId)) or nil
+                if not icon and C_Spell and C_Spell.GetSpellTexture then
+                    local ok, t = pcall(C_Spell.GetSpellTexture, spellId)
+                    if ok then icon = t end
+                end
+                icon = icon or "Interface\\Icons\\INV_Misc_QuestionMark"
                 idRow.spellID = spellId
                 idRow.icon:SetTexture(icon)
-                idRow.name:SetText(name)
+                idRow.name:SetText(tostring(name))
                 idRow.id:SetText(spellId)
                 idRow:Show()
                 idStatus:Hide()
@@ -1003,11 +1074,33 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         end)
         idRow.add:SetScript("OnClick", function()
             if not idRow.spellID then return end
-            AddSpellIdValue(frame.targetListKey, idRow.spellID)
+            AddSpellIdValue(frame.targetListKey, idRow.spellID, true)
         end)
 
         function frame:RefreshList()
-            UpdateRows()
+            local modeLabel = (self.mode == "ID") and "ID" or "NAME"
+            local queryText = SafeTrim((searchBox and searchBox.GetText and searchBox:GetText()) or "")
+            SpellFinderDebug("RefreshList start. mode=" .. modeLabel .. " query=\"" .. tostring(queryText or "") .. "\"")
+            local spells = GetSpellPickerCache()
+            SpellFinderDebug("Provider built. totalSpells=" .. tostring(spells and #spells or 0))
+            if spells and #spells == 0 then
+                self._spellFinderEmptyAttempts = (self._spellFinderEmptyAttempts or 0) + 1
+                SpellFinderDebug("empty spell list")
+            else
+                self._spellFinderEmptyAttempts = 0
+            end
+            self._spellFinderLoading = (self._spellFinderEmptyAttempts == 1)
+            UpdateRows(spells)
+            if spells and #spells == 0 and SpellProvider and SpellProvider.RefreshSoon and not self._spellFinderRetry then
+                self._spellFinderRetry = true
+                SpellFinderDebug("scheduling refresh")
+                SpellProvider:RefreshSoon(function()
+                    self._spellFinderRetry = nil
+                    if frame and frame.IsShown and frame:IsShown() then
+                        frame:RefreshList()
+                    end
+                end)
+            end
         end
 
         function frame:RefreshIdPreview()
@@ -1041,6 +1134,23 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
             end
         end)
 
+        refreshButton:SetScript("OnClick", function()
+            if SpellProvider and SpellProvider.EnsureBuilt then
+                SpellProvider:EnsureBuilt(true)
+            end
+            frame:RefreshList()
+        end)
+
+        frame:SetScript("OnShow", function()
+            SpellFinderDebug("OnShow")
+            frame._spellFinderEmptyAttempts = 0
+            if frame.mode == "ID" then
+                frame:RefreshIdPreview()
+            else
+                frame:RefreshList()
+            end
+        end)
+
         self._spellPickerFrame = frame
         return frame
     end
@@ -1048,8 +1158,9 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
     local function OpenSpellFinder()
         local target = GetFinderTarget()
         local mode = GetFinderMode()
-        local listKey = target == "DEBUFFS" and "combatDebuffSpellList" or "combatBuffSpellList"
-        local label = target == "DEBUFFS" and "Debuff Spell IDs" or "Buff Spell IDs"
+        local modeKey = (mode == "ID") and "ID" or "NAME"
+        local listKey = target == "BLACKLIST" and "combatBlacklistSpellList" or "combatWhitelistSpellList"
+        local label = target == "BLACKLIST" and "Blacklist Spell IDs" or "Whitelist Spell IDs"
         local frame = EnsureSpellPickerFrame()
         frame.targetListKey = listKey
         local modeLabel = mode == "ID" and "ID Search" or "Icon/Name Search"
@@ -1059,12 +1170,26 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         frame.idBox:SetText("")
         frame.idBox:ClearFocus()
         frame:SetMode(mode)
+        if SpellProvider and SpellProvider.EnsureBuilt then
+            SpellProvider:EnsureBuilt()
+        end
+        local spells = GetSpellPickerCache()
+        local results = (SpellProvider and SpellProvider.Filter and SpellProvider:Filter(spells, "")) or spells or {}
+        SpellFinderDebug("Opened. mode=" .. modeKey .. " query=\"\"")
+        SpellFinderDebug("Open: spells=" .. tostring(spells and #spells or 0) .. " query=\"\" results=" .. tostring(results and #results or 0))
+        local wasShown = frame:IsShown()
         frame:Show()
         frame:Raise()
         if mode == "ID" then
             frame:RefreshIdPreview()
-        else
-            frame:RefreshList()
+        end
+        frame:RefreshList()
+        if (not wasShown) and spells and #spells == 0 and SpellProvider and SpellProvider.RefreshSoon then
+            SpellProvider:RefreshSoon(function()
+                if frame and frame.IsShown and frame:IsShown() then
+                    frame:RefreshList()
+                end
+            end)
         end
     end
 
@@ -1392,16 +1517,16 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
             name = "Spell ID",
             order = 1,
             width = "half",
-            get = function() return GetInputValue("combatBuffSpellList") end,
-            set = function(_, val) SetInputValue("combatBuffSpellList", val) end,
+            get = function() return GetInputValue("combatWhitelistSpellList") end,
+            set = function(_, val) SetInputValue("combatWhitelistSpellList", val) end,
         },
         buffSpellAdd = {
             type = "execute",
             name = "Add",
             order = 2,
             width = "half",
-            disabled = function() return not ParseSpellId(GetInputValue("combatBuffSpellList")) end,
-            func = function() AddSpellId("combatBuffSpellList") end,
+            disabled = function() return not ParseSpellId(GetInputValue("combatWhitelistSpellList")) end,
+            func = function() AddSpellId("combatWhitelistSpellList") end,
         },
         buffSpellListHeader = {
             type = "description",
@@ -1409,7 +1534,7 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
             order = 3,
         },
     }
-    local buffRemoveArgs = BuildSpellListArgs("combatBuffSpellList", 10)
+    local buffRemoveArgs = BuildSpellListArgs("combatWhitelistSpellList", 10)
     for key, value in pairs(buffRemoveArgs) do
         buffListArgs[key] = value
     end
@@ -1420,16 +1545,16 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
             name = "Spell ID",
             order = 1,
             width = "half",
-            get = function() return GetInputValue("combatDebuffSpellList") end,
-            set = function(_, val) SetInputValue("combatDebuffSpellList", val) end,
+            get = function() return GetInputValue("combatBlacklistSpellList") end,
+            set = function(_, val) SetInputValue("combatBlacklistSpellList", val) end,
         },
         debuffSpellAdd = {
             type = "execute",
             name = "Add",
             order = 2,
             width = "half",
-            disabled = function() return not ParseSpellId(GetInputValue("combatDebuffSpellList")) end,
-            func = function() AddSpellId("combatDebuffSpellList") end,
+            disabled = function() return not ParseSpellId(GetInputValue("combatBlacklistSpellList")) end,
+            func = function() AddSpellId("combatBlacklistSpellList") end,
         },
         debuffSpellListHeader = {
             type = "description",
@@ -1437,7 +1562,7 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
             order = 3,
         },
     }
-    local debuffRemoveArgs = BuildSpellListArgs("combatDebuffSpellList", 10)
+    local debuffRemoveArgs = BuildSpellListArgs("combatBlacklistSpellList", 10)
     for key, value in pairs(debuffRemoveArgs) do
         debuffListArgs[key] = value
     end
@@ -1474,6 +1599,12 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                     get = function() return GetDB().combatAuraDebugEnabled end,
                     set = function(_, val)
                         GetDB().combatAuraDebugEnabled = val
+                        if SpellProvider then
+                            SpellProvider.debugEnabled = val
+                        end
+                        if val and LilyUI and LilyUI.DebugWindowLog then
+                            LilyUI:DebugWindowLog("CombatAuras", "Combat aura debug enabled")
+                        end
                     end,
                 },
                 combatAuraDebugSpellId = {
@@ -1498,6 +1629,9 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                     get = function() return GetDB().combatFilterEnabled end,
                     set = function(_, val)
                         GetDB().combatFilterEnabled = val
+                        if LilyUI and LilyUI.DebugWindowLog then
+                            LilyUI:DebugWindowLog("CombatAuras", "Combat filter enabled=%s", tostring(val))
+                        end
                         RefreshAuras()
                     end,
                 },
@@ -1514,6 +1648,9 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                     get = function() return GetDB().combatFilterMode or "NONE" end,
                     set = function(_, val)
                         GetDB().combatFilterMode = val
+                        if LilyUI and LilyUI.DebugWindowLog then
+                            LilyUI:DebugWindowLog("CombatAuras", "Combat filter mode=%s", tostring(val))
+                        end
                         RefreshAuras()
                     end,
                 },
@@ -1542,6 +1679,9 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                     get = function() return GetDB().combatFilterAppliesTo or "BOTH" end,
                     set = function(_, val)
                         GetDB().combatFilterAppliesTo = val
+                        if LilyUI and LilyUI.DebugWindowLog then
+                            LilyUI:DebugWindowLog("CombatAuras", "Combat filter appliesTo=%s", tostring(val))
+                        end
                         RefreshAuras()
                     end,
                 },
@@ -1551,8 +1691,8 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                     order = 8,
                     width = "full",
                     values = {
-                        BUFFS = "Buff List",
-                        DEBUFFS = "Debuff List",
+                        WHITELIST = "Whitelist",
+                        BLACKLIST = "Blacklist",
                     },
                     get = function() return GetFinderTarget() end,
                     set = function(_, val) SetFinderTarget(val) end,
@@ -1568,7 +1708,7 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         },
         combatBuffList = {
             type = "group",
-            name = "Buff Spell IDs",
+            name = "Whitelist Spell IDs",
             order = 20,
             inline = true,
             width = "full",
@@ -1576,7 +1716,7 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
         },
         combatDebuffList = {
             type = "group",
-            name = "Debuff Spell IDs",
+            name = "Blacklist Spell IDs",
             order = 30,
             inline = true,
             width = "full",
@@ -1585,6 +1725,9 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
     }
 
     EnsureCombatAuraTooltipHook()
+    if self.RegisterAuraListsWidget then
+        self:RegisterAuraListsWidget()
+    end
 
     return {
         type = "group",
@@ -1604,8 +1747,345 @@ function UnitFrames:BuildAuraOptions(frameType, isRaid)
                 order = 2,
                 args = combatArgs,
             },
+            listsTab = {
+                type = "group",
+                name = "Whitelist / Blacklist",
+                order = 3,
+                args = {
+                    listsPage = {
+                        type = "description",
+                        name = "",
+                        order = 1,
+                        width = "full",
+                        dialogControl = "LilyUIAuraListsPage",
+                        frameType = frameType,
+                    },
+                },
+            },
         },
     }
+end
+
+-- ============================================================================
+-- AURA LISTS UI (Whitelist / Blacklist)
+-- ============================================================================
+
+function UnitFrames:RegisterAuraListsWidget()
+    if self._auraListsWidgetRegistered then return end
+    local AceGUI = LibStub and LibStub("AceGUI-3.0", true)
+    if not AceGUI then return end
+
+    local Type, Version = "LilyUIAuraListsPage", 1
+    if (AceGUI:GetWidgetVersion(Type) or 0) >= Version then
+        self._auraListsWidgetRegistered = true
+        return
+    end
+
+    local function NormalizeFrameType(value)
+        if not value then return nil end
+        local v = tostring(value):lower()
+        if v:find("raid") then
+            return "raid"
+        end
+        if v:find("party") then
+            return "party"
+        end
+        return nil
+    end
+
+    local function ResolveFrameType(widget)
+        if not widget then return nil end
+        if widget._fixedFrameType then
+            return NormalizeFrameType(widget._fixedFrameType)
+        end
+
+        local option = widget.GetUserData and widget:GetUserData("option") or nil
+        local user = widget.GetUserDataTable and widget:GetUserDataTable() or nil
+        if not option and user then
+            option = user.option
+        end
+
+        local frameType = option and (option.frameType or option.mode)
+        frameType = NormalizeFrameType(frameType)
+        if frameType then
+            return frameType
+        end
+
+        local path = user and user.path
+        local pathStr = ""
+        if type(path) == "table" then
+            pathStr = table.concat(path, "/")
+        elseif path ~= nil then
+            pathStr = tostring(path)
+        end
+        frameType = NormalizeFrameType(pathStr)
+        if frameType then
+            return frameType
+        end
+
+        if UnitFrames and UnitFrames._auraListsFrameTypeFallbackLogged ~= true then
+            UnitFrames._auraListsFrameTypeFallbackLogged = true
+            if LilyUI and LilyUI.DebugWindowLog then
+                LilyUI:DebugWindowLog("Lists", "[AuraListsUI] frameType missing; defaulting to party")
+            end
+        end
+        return "party"
+    end
+
+    local function TryBuild(widget)
+        if not widget or widget._listsBuilt then return end
+        local frameType = ResolveFrameType(widget) or "party"
+        if UnitFrames and UnitFrames.CreateAuraListsUI then
+            local host = widget.content or widget.frame
+            local ok, err = pcall(UnitFrames.CreateAuraListsUI, UnitFrames, host, frameType)
+            if not ok and host and host.CreateFontString then
+                local label = host:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+                label:SetPoint("TOPLEFT", host, "TOPLEFT", 12, -12)
+                label:SetText("|cffff6060Unable to build aura lists: " .. tostring(err) .. "|r")
+            end
+            widget._listsBuilt = true
+        end
+    end
+
+    local methods = {
+        OnAcquire = function(self)
+            self:SetWidth(300)
+            self:SetHeight(420)
+            if self.frame and self.frame.SetHeight then
+                self.frame:SetHeight(420)
+            end
+            if self.content and self.content.SetHeight then
+                self.content:SetHeight(420)
+            end
+            self._listsBuilt = false
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, function() TryBuild(self) end)
+            else
+                TryBuild(self)
+            end
+        end,
+        OnRelease = function(self)
+            self._listsBuilt = false
+        end,
+        OnWidthSet = function(self, width)
+            local content = self.content or self.frame
+            if content then
+                content:SetWidth(width)
+                content.width = width
+            end
+        end,
+        OnHeightSet = function(self, height)
+            local targetHeight = height
+            if not targetHeight or targetHeight < 200 then
+                targetHeight = 420
+            end
+            if self.frame and self.frame.SetHeight then
+                self.frame:SetHeight(targetHeight)
+            end
+            local content = self.content or self.frame
+            if content then
+                content:SetHeight(targetHeight)
+                content.height = targetHeight
+            end
+        end,
+        SetText = function(self, text)
+            self._labelText = text
+            if C_Timer and C_Timer.After then
+                C_Timer.After(0, function() TryBuild(self) end)
+            else
+                TryBuild(self)
+            end
+        end,
+        SetDisabled = function() end,
+    }
+
+    local function Constructor()
+        local frame = CreateFrame("Frame", nil, UIParent)
+        frame:Hide()
+
+        local content = CreateFrame("Frame", nil, frame)
+        content:SetPoint("TOPLEFT")
+        content:SetPoint("BOTTOMRIGHT")
+
+        local widget = {
+            frame = frame,
+            content = content,
+            type = Type,
+        }
+        for method, func in pairs(methods) do
+            widget[method] = func
+        end
+
+        frame.obj = widget
+        frame:SetScript("OnShow", function(selfFrame)
+            local obj = selfFrame.obj
+            if obj then
+                if not obj._wlblLoggedThisShow and LilyUI and LilyUI.DebugWindowLog then
+                    obj._wlblLoggedThisShow = true
+                    local parent = (obj and obj.content) or selfFrame
+                    local parentExists = parent ~= nil
+                    local w = (parent and parent.GetWidth and parent:GetWidth()) or 0
+                    local h = (parent and parent.GetHeight and parent:GetHeight()) or 0
+                    LilyUI:DebugWindowLog("System", "[GUI] [WL/BL] Subtab selected (parent=%s size=%sx%s)", tostring(parentExists), tostring(w), tostring(h))
+                end
+                TryBuild(obj)
+            end
+        end)
+        frame:SetScript("OnHide", function(selfFrame)
+            local obj = selfFrame.obj
+            if obj then
+                obj._wlblLoggedThisShow = nil
+            end
+        end)
+
+        return AceGUI:RegisterAsWidget(widget)
+    end
+
+    AceGUI:RegisterWidgetType(Type, Constructor, Version)
+    self._auraListsWidgetRegistered = true
+end
+
+function UnitFrames:RefreshAuraListsUI(frameType)
+    if not self._auraListsFrames then return end
+    local frame = self._auraListsFrames[frameType]
+    if frame and frame._refreshLists then
+        frame:_refreshLists()
+    end
+end
+
+function UnitFrames:CreateAuraListsUI(parent, frameType)
+    local function WLBLDebug(fmt, ...)
+        if LilyUI and type(LilyUI.DebugWindowLog) == "function" then
+            if select("#", ...) > 0 then
+                local ok, out = pcall(string.format, fmt, ...)
+                if ok then
+                    LilyUI:DebugWindowLog("System", "%s", out)
+                else
+                    LilyUI:DebugWindowLog("System", "%s", fmt)
+                end
+            else
+                LilyUI:DebugWindowLog("System", "%s", fmt)
+            end
+        end
+    end
+
+    if not parent then
+        WLBLDebug("[GUI] [WL/BL] ERROR: parent/container is nil - aborting")
+        return
+    end
+
+    -- Temporary: detach all WL/BL logic and show a single placeholder panel for visibility.
+    local function BuildPlaceholder(force)
+        local parentW = (parent.GetWidth and parent:GetWidth()) or 0
+        local parentH = (parent.GetHeight and parent:GetHeight()) or 0
+        WLBLDebug("[GUI] [WL/BL] Open/build start parentSize=%sx%s", tostring(parentW), tostring(parentH))
+
+        if (parentW <= 1 or parentH <= 1) and not force then
+            if not parent._wlblDeferred then
+                parent._wlblDeferred = true
+                WLBLDebug("[GUI] [WL/BL] Parent size 0, deferring once")
+                if C_Timer and C_Timer.After then
+                    C_Timer.After(0, function()
+                        if parent and parent.GetWidth then
+                            BuildPlaceholder(true)
+                        end
+                    end)
+                    return
+                end
+            end
+        end
+
+        local THEME = (LilyUI and LilyUI.GUI and LilyUI.GUI.THEME) or {
+            bgMedium = {0.115, 0.130, 0.155, 0.95},
+            borderLight = {0.280, 0.280, 0.320, 0.9},
+            text = {0.96, 0.96, 0.98},
+            textDim = {0.72, 0.72, 0.78},
+        }
+
+        local function SetBackdrop(frame, bg, border)
+            if not frame or not frame.SetBackdrop then
+                if frame and Mixin and BackdropTemplateMixin then
+                    Mixin(frame, BackdropTemplateMixin)
+                else
+                    return
+                end
+            end
+
+            frame:SetBackdrop({
+                bgFile = "Interface\\Buttons\\WHITE8x8",
+                edgeFile = "Interface\\Buttons\\WHITE8x8",
+                tile = false,
+                edgeSize = 1,
+                insets = { left = 0, right = 0, top = 0, bottom = 0 },
+            })
+            if bg then
+                frame:SetBackdropColor(bg[1], bg[2], bg[3], bg[4] or 1)
+            end
+            if border then
+                frame:SetBackdropBorderColor(border[1], border[2], border[3], border[4] or 1)
+            end
+        end
+
+        local function ApplyFont(fs, size, r, g, b, a)
+            if not fs then return end
+            local fontPath = LilyUI and LilyUI.GetGlobalFont and LilyUI:GetGlobalFont()
+            local _, oldSize = fs:GetFont()
+            size = size or oldSize or 12
+            if fontPath then
+                fs:SetFont(fontPath, size, "OUTLINE")
+            end
+            fs:SetShadowOffset(0, 0)
+            fs:SetShadowColor(0, 0, 0, 1)
+            fs:SetTextColor(r or THEME.text[1], g or THEME.text[2], b or THEME.text[3], a or 1)
+        end
+
+        local function CreatePanel(parentFrame)
+            local f = CreateFrame("Frame", nil, parentFrame, "BackdropTemplate")
+            SetBackdrop(f, THEME.bgMedium, THEME.borderLight)
+            return f
+        end
+
+        local panel = parent._wlblPlaceholder
+        if not panel then
+            panel = CreatePanel(parent)
+            parent._wlblPlaceholder = panel
+
+            local label = panel:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+            ApplyFont(label, 12, THEME.textDim[1], THEME.textDim[2], THEME.textDim[3], 1)
+            label:SetPoint("TOPLEFT", panel, "TOPLEFT", 12, -12)
+            label:SetJustifyH("LEFT")
+            label:SetWidth(520)
+            label:SetText("This page is queued for a later update.\n\nWhitelist/Blacklist tools are being rebuilt.")
+            panel._placeholderLabel = label
+        else
+            panel:Show()
+        end
+
+        panel:ClearAllPoints()
+        panel:SetPoint("TOPLEFT", parent, "TOPLEFT", 6, -34)
+        panel:SetPoint("BOTTOMRIGHT", parent, "BOTTOMRIGHT", -6, 6)
+        panel:Show()
+
+        if panel._placeholderLabel then
+            panel._placeholderLabel:SetText("This page is queued for a later update.\n\nWhitelist/Blacklist tools are being rebuilt.")
+        end
+
+        local children = { parent:GetChildren() }
+        for i = 1, #children do
+            local child = children[i]
+            if child and child ~= panel and child.Hide then
+                child:Hide()
+            end
+        end
+
+        local lw = (panel.GetWidth and panel:GetWidth()) or 0
+        local lh = (panel.GetHeight and panel:GetHeight()) or 0
+        WLBLDebug("[GUI] [WL/BL] Placeholder panel created shown=%s size=%sx%s", tostring(panel:IsShown()), tostring(lw), tostring(lh))
+    end
+
+    BuildPlaceholder(false)
+    return
+
 end
 
 -- ============================================================================
@@ -1860,7 +2340,7 @@ function UnitFrames:BuildProfileOptions(frameType, isRaid)
                 func = function()
                     local exportString = self:ExportProfile(nil, {frameType}, frameType .. "_export")
                     -- Would open a dialog with the export string
-                    print("Export string generated. Use /nephui export to view.")
+                    print("Export string generated. Use /lilyui export to view.")
                 end,
             },
         },

@@ -195,8 +195,8 @@ function CastBars:HookBossCastBars()
     -- Hook each boss frame's spellbar
     for i = 1, 8 do
         local bossFrame = _G["Boss" .. i .. "TargetFrame"] or _G["Boss" .. i .. "Frame"]
-        if bossFrame and bossFrame.spellbar and not bossFrame.spellbar.__nephuiHooked then
-            bossFrame.spellbar.__nephuiHooked = true
+        if bossFrame and bossFrame.spellbar and not bossFrame.spellbar.__lilyuiHooked then
+            bossFrame.spellbar.__lilyuiHooked = true
 
             -- Per-boss throttling variables
             local lastUpdate = 0

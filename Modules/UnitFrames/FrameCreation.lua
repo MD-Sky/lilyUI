@@ -307,7 +307,7 @@ function UF:CreateUnitFrame(unit)
     
     if not InCombatLockdown() then
         RegisterUnitWatch(unitFrame, false)
-        unitFrame.__nephuiUnitWatchActive = true
+        unitFrame.__lilyuiUnitWatchActive = true
     end
     unitFrame.__nuiUFMouseoverActive = unitFrame:IsMouseOver() == true
     UF.UpdateMouseoverHighlight(unitFrame)

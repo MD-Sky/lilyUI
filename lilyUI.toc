@@ -42,9 +42,11 @@ Core\Main.lua
 Core\Defaults.lua
 Core\Media.lua
 Core\GUI.lua
+Core\Debug.lua
 
 # Utility files
 Utils\Toolkit.lua
+Utils\SpellProvider.lua
 Utils\PixelPerfect.lua
 Utils\Nudge.lua
 

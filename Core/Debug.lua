@@ -1,10 +1,11 @@
 local ADDON_NAME, ns = ...
-local NephUI = ns.Addon
+local LilyUI = ns.Addon
 
 -- Lightweight in-game debug window for LilyUI.
 -- Toggle with: /lilydebug
 
-local MAX_LINES = 500
+local MAX_LINES = 300
+local max = math.max
 
 local Debug = {
     lines = {},
@@ -14,6 +15,31 @@ local Debug = {
 local function NowStamp()
     local t = date and date("%H:%M:%S") or "--:--:--"
     return t
+end
+
+local function ResizeEdit(f)
+    if not f or not f.scroll or not f.edit then
+        return
+    end
+
+    local scroll = f.scroll
+    local edit = f.edit
+    local sw = scroll:GetWidth() or 0
+    local fw = f:GetWidth() or 0
+    local width = sw - 24
+    if width <= 0 then
+        width = fw - 60
+    end
+    if width > 0 then
+        edit:SetWidth(width)
+    end
+
+    local sh = scroll:GetHeight() or 0
+    local h = (edit.GetStringHeight and edit:GetStringHeight() or 0) + 20
+    edit:SetHeight(max(h, sh))
+    if scroll.UpdateScrollChildRect then
+        scroll:UpdateScrollChildRect()
+    end
 end
 
 local function EnsureFrame()
@@ -53,6 +79,11 @@ local function EnsureFrame()
     clear:SetPoint("TOPRIGHT", f, "TOPRIGHT", -38, -8)
     clear:SetText("Clear")
 
+    local selectAll = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+    selectAll:SetSize(90, 20)
+    selectAll:SetPoint("RIGHT", clear, "LEFT", -6, 0)
+    selectAll:SetText("Select All")
+
     local copyHint = f:CreateFontString(nil, "OVERLAY", "GameFontDisable")
     copyHint:SetPoint("TOPLEFT", title, "BOTTOMLEFT", 0, -4)
     copyHint:SetText("Tip: click inside, Ctrl+A then Ctrl+C")
@@ -65,11 +96,28 @@ local function EnsureFrame()
     edit:SetMultiLine(true)
     edit:SetAutoFocus(false)
     edit:EnableMouse(true)
+    if edit.EnableKeyboard then
+        edit:EnableKeyboard(true)
+    end
     edit:SetFontObject(ChatFontNormal)
-    edit:SetWidth(1)
+    edit:SetPoint("TOPLEFT", scroll, "TOPLEFT", 0, 0)
+    edit:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", 0, 0)
+    edit:SetScript("OnMouseDown", function(self)
+        self:SetFocus()
+    end)
+    edit:SetScript("OnKeyDown", function(self, key)
+        if (key == "A" or key == "a") and IsControlKeyDown and IsControlKeyDown() then
+            self:HighlightText(0, -1)
+            return
+        end
+        if key == "ESCAPE" then
+            self:ClearFocus()
+            return
+        end
+    end)
     edit:SetScript("OnEscapePressed", function() edit:ClearFocus() end)
-    edit:SetScript("OnTextChanged", function(self)
-        scroll:UpdateScrollChildRect()
+    edit:SetScript("OnTextChanged", function()
+        ResizeEdit(f)
     end)
     scroll:SetScrollChild(edit)
 
@@ -77,12 +125,21 @@ local function EnsureFrame()
         wipe(Debug.lines)
         edit:SetText("")
     end)
+    selectAll:SetScript("OnClick", function()
+        edit:SetFocus()
+        edit:HighlightText(0, -1)
+    end)
 
     f.title = title
     f.scroll = scroll
     f.edit = edit
 
+    f:SetScript("OnSizeChanged", function()
+        ResizeEdit(f)
+    end)
+
     Debug.frame = f
+    ResizeEdit(f)
     return f
 end
 
@@ -100,6 +157,14 @@ function Debug:Toggle(show)
     end
 end
 
+function Debug:Clear()
+    wipe(self.lines)
+    local f = EnsureFrame()
+    if f and f.edit then
+        f.edit:SetText("")
+    end
+end
+
 function Debug:Append(line)
     if not line or line == "" then
         return
@@ -113,21 +178,78 @@ function Debug:Append(line)
     if f and f.edit then
         f.edit:SetText(table.concat(self.lines, "\n"))
         f.edit:SetCursorPosition(#f.edit:GetText())
+        ResizeEdit(f)
+        if f.scroll then
+            f.scroll:UpdateScrollChildRect()
+            f.scroll:SetVerticalScroll(f.scroll:GetVerticalScrollRange())
+        end
     end
 end
 
-function NephUI:DebugLog(msg)
-    local line = "[" .. NowStamp() .. "] " .. tostring(msg)
+local function ShouldLogCategory(category)
+    if category == "CombatAuras" then
+        local UF = LilyUI and LilyUI.PartyFrames
+        if UF and UF.devMode then
+            return true
+        end
+        local db = UF and UF.GetDB and UF:GetDB() or nil
+        return db and db.combatAuraDebugEnabled == true
+    end
+    if category == "SpellFinder" or category == "Lists" then
+        local UF = LilyUI and LilyUI.PartyFrames
+        if UF and UF.devMode then
+            return true
+        end
+        local db = UF and UF.GetDB and UF:GetDB() or nil
+        if db and db.combatAuraDebugEnabled == true then
+            return true
+        end
+        local provider = LilyUI and LilyUI.SpellProvider
+        return provider and provider.debugEnabled == true
+    end
+    return true
+end
+
+function LilyUI:DebugWindowLog(category, fmt, ...)
+    local cat = category or "System"
+    if not ShouldLogCategory(cat) then
+        return
+    end
+
+    local msg = fmt
+    if select("#", ...) > 0 and type(fmt) == "string" then
+        local ok, out = pcall(string.format, fmt, ...)
+        if ok then
+            msg = out
+        else
+            msg = fmt
+        end
+    end
+
+    local line = "[" .. NowStamp() .. "] [" .. tostring(cat) .. "] " .. tostring(msg)
     Debug:Append(line)
 end
 
--- Convenience: NephUI:DebugPrintf("x=%s", x)
-function NephUI:DebugPrintf(fmt, ...)
+-- Backwards compatibility
+function LilyUI:DebugLogCategory(category, fmt, ...)
+    return self:DebugWindowLog(category, fmt, ...)
+end
+
+function LilyUI:SpellDebug(category, fmt, ...)
+    self:DebugWindowLog(category, fmt, ...)
+end
+
+function LilyUI:DebugLog(msg)
+    self:DebugWindowLog("System", "%s", tostring(msg))
+end
+
+-- Convenience: LilyUI:DebugPrintf("x=%s", x)
+function LilyUI:DebugPrintf(fmt, ...)
     local ok, out = pcall(string.format, fmt, ...)
     if ok then
-        self:DebugLog(out)
+        self:DebugWindowLog("System", "%s", out)
     else
-        self:DebugLog("DebugPrintf error: " .. tostring(out))
+        self:DebugWindowLog("System", "DebugPrintf error: %s", tostring(out))
     end
 end
 
@@ -137,21 +259,22 @@ SlashCmdList.LILYDEBUG = function(msg)
     msg = (msg and msg:lower()) or ""
 
     if msg == "" then
-        Debug:Toggle()
-        return
-    end
-
-    if msg == "clear" then
         local f = EnsureFrame()
-        wipe(Debug.lines)
-        if f and f.edit then
-            f.edit:SetText("")
+        local show = not f:IsShown()
+        Debug:Toggle(show)
+        if show then
+            LilyUI:DebugWindowLog("System", "Debug window opened OK")
         end
         return
     end
 
+    if msg == "clear" then
+        Debug:Clear()
+        return
+    end
+
     if msg == "clickcast" or msg == "click cast" then
-        local UF = NephUI and NephUI.PartyFrames
+        local UF = LilyUI and LilyUI.PartyFrames
         local hasUF = UF ~= nil
         local hasClickCastNS = hasUF and UF.ClickCast ~= nil
         local db = hasUF and UF.GetClickCastDB and UF:GetClickCastDB() or nil
@@ -160,17 +283,57 @@ SlashCmdList.LILYDEBUG = function(msg)
         if hasUF and UF.ClickCastBindings then
             for _ in pairs(UF.ClickCastBindings) do bindCount = bindCount + 1 end
         end
-        NephUI:DebugLog("ClickCast dump:")
-        NephUI:DebugLog("- UF present: " .. tostring(hasUF))
-        NephUI:DebugLog("- UF.ClickCast namespace: " .. tostring(hasClickCastNS))
-        NephUI:DebugLog("- Enabled: " .. tostring(enabled))
-        NephUI:DebugLog("- Runtime bindings: " .. tostring(bindCount))
-        NephUI:DebugLog("- InCombatLockdown: " .. tostring(InCombatLockdown and InCombatLockdown() or false))
+        LilyUI:DebugWindowLog("System", "ClickCast dump:")
+        LilyUI:DebugWindowLog("System", "- UF present: %s", tostring(hasUF))
+        LilyUI:DebugWindowLog("System", "- UF.ClickCast namespace: %s", tostring(hasClickCastNS))
+        LilyUI:DebugWindowLog("System", "- Enabled: %s", tostring(enabled))
+        LilyUI:DebugWindowLog("System", "- Runtime bindings: %s", tostring(bindCount))
+        LilyUI:DebugWindowLog("System", "- InCombatLockdown: %s", tostring(InCombatLockdown and InCombatLockdown() or false))
         Debug:Toggle(true)
         return
     end
 
-    NephUI:DebugLog("Usage: /lilydebug (toggle) | /lilydebug clear | /lilydebug clickcast")
+    if msg == "spell on" or msg == "spell enable" then
+        if LilyUI and LilyUI.SpellProvider then
+            LilyUI.SpellProvider.debugEnabled = true
+        end
+        LilyUI:DebugWindowLog("System", "SpellFinder debug enabled")
+        Debug:Toggle(true)
+        return
+    end
+
+    if msg == "spell off" or msg == "spell disable" then
+        if LilyUI and LilyUI.SpellProvider then
+            LilyUI.SpellProvider.debugEnabled = false
+        end
+        LilyUI:DebugWindowLog("System", "SpellFinder debug disabled")
+        Debug:Toggle(true)
+        return
+    end
+
+    if msg == "aura on" or msg == "aura enable" then
+        local UF = LilyUI and LilyUI.PartyFrames
+        local db = UF and UF.GetDB and UF:GetDB() or nil
+        if db then
+            db.combatAuraDebugEnabled = true
+        end
+        LilyUI:DebugWindowLog("System", "CombatAuras debug enabled")
+        Debug:Toggle(true)
+        return
+    end
+
+    if msg == "aura off" or msg == "aura disable" then
+        local UF = LilyUI and LilyUI.PartyFrames
+        local db = UF and UF.GetDB and UF:GetDB() or nil
+        if db then
+            db.combatAuraDebugEnabled = false
+        end
+        LilyUI:DebugWindowLog("System", "CombatAuras debug disabled")
+        Debug:Toggle(true)
+        return
+    end
+
+    LilyUI:DebugWindowLog("System", "Usage: /lilydebug (toggle) | /lilydebug clear | /lilydebug clickcast | /lilydebug spell on|off | /lilydebug aura on|off")
     Debug:Toggle(true)
 end
 
